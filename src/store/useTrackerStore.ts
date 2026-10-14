@@ -1,0 +1,557 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import {
+  Profile,
+  Tracker,
+  TrackerStreak,
+  DailyPledge,
+  DailyReview,
+  MotivationAnchor,
+  UrgeLog,
+  CommunityPost,
+  ClockViewMode,
+} from '../types/database.types';
+
+export const ALCOHOL_MILESTONES = [
+  { id: '1d', category: 'alcohol', target_seconds: 86400, title: '24 Horas', biological_fact: 'El nivel de azúcar en sangre empieza a normalizarse y el hígado inicia la desintoxicación aguda.', badge_icon: 'Sparkles' },
+  { id: '3d', category: 'alcohol', target_seconds: 259200, title: '3 Días', biological_fact: 'La fase crítica de resaca química remite. Los niveles de hidratación celular se estabilizan.', badge_icon: 'Activity' },
+  { id: '7d', category: 'alcohol', target_seconds: 604800, title: '1 Semana', biological_fact: 'El ciclo de sueño REM mejora drásticamente; despiertas con mayor energía cognitiva.', badge_icon: 'Moon' },
+  { id: '14d', category: 'alcohol', target_seconds: 1209600, title: '2 Semanas', biological_fact: 'Se reduce el reflujo gástrico y desaparece gran parte de la inflamación facial.', badge_icon: 'Heart' },
+  { id: '30d', category: 'alcohol', target_seconds: 2592000, title: '1 Mes', biological_fact: 'La grasa hepática disminuye hasta un 15% y la presión arterial desciende de forma medible.', badge_icon: 'ShieldCheck' },
+  { id: '90d', category: 'alcohol', target_seconds: 7776000, title: '3 Meses', biological_fact: 'Regulación dopaminérgica avanzada: disminuye la ansiedad basal y mejora la memoria de trabajo.', badge_icon: 'Brain' },
+  { id: '365d', category: 'alcohol', target_seconds: 31536000, title: '1 Año', biological_fact: 'Riesgo cardiovascular reducido significativamente y regeneración metabólica consolidada.', badge_icon: 'Trophy' },
+];
+
+const INITIAL_PROFILE: Profile = {
+  id: 'usr-default-01',
+  anonymous_alias: 'Phoenix_94',
+  avatar_color: '#10B981',
+  created_at: new Date(Date.now() - 14 * 86400000).toISOString(),
+};
+
+// Start date: 14 days and 8 hours ago for demonstration
+const INITIAL_START_DATE = new Date(Date.now() - (14 * 86400 + 8 * 3600 + 42 * 60 + 19) * 1000).toISOString();
+
+const INITIAL_TRACKER: Tracker = {
+  id: 'trk-alcohol-01',
+  user_id: 'usr-default-01',
+  category: 'alcohol',
+  habit_name: 'Alcohol',
+  start_date: INITIAL_START_DATE,
+  cost_per_day: 12.50,
+  time_spent_minutes_per_day: 120,
+  calories_per_day: 650,
+  is_active: true,
+  created_at: INITIAL_START_DATE,
+  updated_at: new Date().toISOString(),
+};
+
+const INITIAL_ANCHORS: MotivationAnchor[] = [
+  {
+    id: 'anc-1',
+    tracker_id: 'trk-alcohol-01',
+    user_id: 'usr-default-01',
+    title: 'Recuperar mi lucidez y presencia con mi familia',
+    description: 'Estar al 100% despierto en los desayunos y no perderme momentos irrepetibles.',
+    image_url: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=600&q=80',
+    display_order: 1,
+    created_at: INITIAL_START_DATE,
+  },
+  {
+    id: 'anc-2',
+    tracker_id: 'trk-alcohol-01',
+    user_id: 'usr-default-01',
+    title: 'Mi salud cardíaca y energía matutina',
+    description: 'Dormir profundamente y no despertarme con palpitaciones a las 4 AM.',
+    image_url: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=600&q=80',
+    display_order: 2,
+    created_at: INITIAL_START_DATE,
+  },
+  {
+    id: 'anc-3',
+    tracker_id: 'trk-alcohol-01',
+    user_id: 'usr-default-01',
+    title: 'Libertad financiera y respeto a mí mismo',
+    description: 'Ahorrar más de 350€ al mes para viajar y construir mi negocio propio.',
+    image_url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=600&q=80',
+    display_order: 3,
+    created_at: INITIAL_START_DATE,
+  },
+];
+
+const INITIAL_COMMUNITY_POSTS: CommunityPost[] = [
+  {
+    id: 'post-1',
+    author_alias: 'ClaritySeeker',
+    cohort_bucket: 'day_8_to_30',
+    sober_days_at_post: 14,
+    content: 'Hoy cumplo dos semanas exactas. Lo más increíble no es solo el dinero ahorrado (unos 170€), sino que la niebla mental por fin se disipó. El primer fin de semana fue un infierno, pero el modo SOS con la respiración 4-7-8 me salvó el sábado. ¡Fuerza a todos!',
+    cheers_count: 42,
+    user_has_cheered: false,
+    created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
+  },
+  {
+    id: 'post-2',
+    author_alias: 'BraveHeart_88',
+    cohort_bucket: 'day_8_to_30',
+    sober_days_at_post: 12,
+    content: 'Ayer salí a cenar con amigos del trabajo. Todos bebiendo cerveza y cócteles. Pedí agua con gas y lima. Al principio sentí vergüenza ajena, pero despertarme hoy a las 7:00 AM fresco como una rosa valió cada segundo.',
+    cheers_count: 38,
+    user_has_cheered: true,
+    created_at: new Date(Date.now() - 3600000 * 9).toISOString(),
+  },
+  {
+    id: 'post-3',
+    author_alias: 'ResetAndRise',
+    cohort_bucket: 'day_1_to_7',
+    sober_days_at_post: 3,
+    content: 'Día 3. El dolor de cabeza está cediendo. Los temblores leves han parado. Gracias a los que me mandaron ánimos el día 1, no sabéis cuánto ayuda ver que se puede.',
+    cheers_count: 56,
+    user_has_cheered: false,
+    created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
+  },
+  {
+    id: 'post-4',
+    author_alias: 'MountainMind',
+    cohort_bucket: 'day_31_to_90',
+    sober_days_at_post: 45,
+    content: 'Mes y medio sobrio. Mi hígado y mi presión arterial han vuelto a valores normales de laboratorio. Mi médico no se lo creía. El cuerpo tiene una capacidad milagrosa de regenerarse si dejas de envenenarlo.',
+    cheers_count: 94,
+    user_has_cheered: false,
+    created_at: new Date(Date.now() - 3600000 * 28).toISOString(),
+  },
+  {
+    id: 'post-5',
+    author_alias: 'TitaniumWill',
+    cohort_bucket: 'day_91_plus',
+    sober_days_at_post: 180,
+    content: '6 meses hoy. Para los que están en los días 1 a 7: la dopamina natural VUELVE. Vuelves a disfrutar de una buena comida, de una película, de una conversación sin necesidad de tener un vaso en la mano.',
+    cheers_count: 142,
+    user_has_cheered: true,
+    created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
+  },
+];
+
+// Helper to generate realistic daily history for heatmap
+function generateInitialReviews(startDateIso: string): DailyReview[] {
+  const reviews: DailyReview[] = [];
+  const start = new Date(startDateIso);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - start.getTime()) / 86400000);
+
+  for (let i = 0; i < diffDays; i++) {
+    const d = new Date(start.getTime() + i * 86400000);
+    const dateStr = d.toISOString().split('T')[0];
+    
+    // Vary difficulty for demonstration
+    const isHardDay = i === 4 || i === 9 || i === 12;
+    reviews.push({
+      id: `rev-${dateStr}`,
+      tracker_id: 'trk-alcohol-01',
+      user_id: 'usr-default-01',
+      review_date: dateStr,
+      stayed_sober: true,
+      difficulty_rating: isHardDay ? 4 : (i % 2 === 0 ? 1 : 2),
+      triggers: isHardDay ? ['Evento social', 'Estrés laboral'] : ['Aburrimiento nocturno'],
+      notes: isHardDay ? 'Cena con compañeros de trabajo, momentos difíciles pero superados.' : 'Día tranquilo y con energía.',
+      created_at: new Date(d.getTime() + 20 * 3600000).toISOString(),
+    });
+  }
+  return reviews;
+}
+
+interface TrackerStoreState {
+  profile: Profile;
+  trackers: Tracker[];
+  activeTrackerId: string;
+  streaks: TrackerStreak[];
+  pledges: DailyPledge[];
+  reviews: DailyReview[];
+  anchors: MotivationAnchor[];
+  urgeLogs: UrgeLog[];
+  communityPosts: CommunityPost[];
+  
+  // UI State
+  clockMode: ClockViewMode;
+  activeTab: 'dashboard' | 'diary' | 'community' | 'profile';
+  isSOSOpen: boolean;
+  isMorningPledgeOpen: boolean;
+  isEveningReviewOpen: boolean;
+  isResetModalOpen: boolean;
+  isOnboardingCompleted: boolean;
+
+  // Actions
+  setClockMode: (mode: ClockViewMode) => void;
+  setActiveTab: (tab: 'dashboard' | 'diary' | 'community' | 'profile') => void;
+  openSOS: (open: boolean) => void;
+  openMorningPledge: (open: boolean) => void;
+  openEveningReview: (open: boolean) => void;
+  openResetModal: (open: boolean) => void;
+  
+  // Business logic actions
+  initNewTracker: (trackerData: Partial<Tracker>, firstAnchorTitle?: string) => void;
+  switchTracker: (trackerId: string) => void;
+  signMorningPledge: () => void;
+  submitEveningReview: (stayedSober: boolean, difficulty: number, triggers: string[], notes: string) => void;
+  resetSobriety: (relapseTimestamp: string, reason: string, triggers: string[]) => void;
+  logUrgeOvercome: (intensity: number, trigger: string, copingTool: string) => void;
+  addMotivationAnchor: (title: string, description?: string, imageUrl?: string) => void;
+  deleteMotivationAnchor: (id: string) => void;
+  addCommunityPost: (content: string, cohort: CommunityPost['cohort_bucket'], soberDays: number) => void;
+  togglePostCheer: (postId: string) => void;
+  resetToInitialDemo: () => void;
+}
+
+export const useTrackerStore = create<TrackerStoreState>()(
+  persist(
+    (set, get) => ({
+      profile: INITIAL_PROFILE,
+      trackers: [INITIAL_TRACKER],
+      activeTrackerId: 'trk-alcohol-01',
+      streaks: [
+        {
+          id: 'strk-1',
+          tracker_id: 'trk-alcohol-01',
+          started_at: INITIAL_START_DATE,
+          created_at: INITIAL_START_DATE,
+        },
+      ],
+      pledges: [
+        {
+          id: 'pld-today',
+          tracker_id: 'trk-alcohol-01',
+          user_id: 'usr-default-01',
+          pledge_date: new Date().toISOString().split('T')[0],
+          pledged_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        },
+      ],
+      reviews: generateInitialReviews(INITIAL_START_DATE),
+      anchors: INITIAL_ANCHORS,
+      urgeLogs: [
+        {
+          id: 'urg-1',
+          tracker_id: 'trk-alcohol-01',
+          user_id: 'usr-default-01',
+          intensity: 8,
+          trigger_detected: 'Evento social',
+          coping_tool_used: 'Respiración 4-7-8',
+          overcame_urge: true,
+          created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+        },
+        {
+          id: 'urg-2',
+          tracker_id: 'trk-alcohol-01',
+          user_id: 'usr-default-01',
+          intensity: 6,
+          trigger_detected: 'Ansiedad / Estrés',
+          coping_tool_used: 'Ver mis motivos personales',
+          overcame_urge: true,
+          created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
+        },
+      ],
+      communityPosts: INITIAL_COMMUNITY_POSTS,
+
+      // UI
+      clockMode: 'detailed',
+      activeTab: 'dashboard',
+      isSOSOpen: false,
+      isMorningPledgeOpen: false,
+      isEveningReviewOpen: false,
+      isResetModalOpen: false,
+      isOnboardingCompleted: true,
+
+      setClockMode: (mode) => set({ clockMode: mode }),
+      setActiveTab: (tab) => set({ activeTab: tab }),
+      openSOS: (open) => set({ isSOSOpen: open }),
+      openMorningPledge: (open) => set({ isMorningPledgeOpen: open }),
+      openEveningReview: (open) => set({ isEveningReviewOpen: open }),
+      openResetModal: (open) => set({ isResetModalOpen: open }),
+
+      initNewTracker: (trackerData, firstAnchorTitle) => {
+        const newId = `trk-${Date.now()}`;
+        const newStartDate = trackerData.start_date || new Date().toISOString();
+        const newTracker: Tracker = {
+          id: newId,
+          user_id: get().profile.id,
+          category: trackerData.category || 'alcohol',
+          habit_name: trackerData.habit_name || 'Alcohol',
+          start_date: newStartDate,
+          cost_per_day: trackerData.cost_per_day ?? 10,
+          time_spent_minutes_per_day: trackerData.time_spent_minutes_per_day ?? 90,
+          calories_per_day: trackerData.calories_per_day ?? 600,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const newStreak: TrackerStreak = {
+          id: `strk-${Date.now()}`,
+          tracker_id: newId,
+          started_at: newStartDate,
+          created_at: new Date().toISOString(),
+        };
+
+        let newAnchors = [...get().anchors];
+        if (firstAnchorTitle) {
+          newAnchors.unshift({
+            id: `anc-${Date.now()}`,
+            tracker_id: newId,
+            user_id: get().profile.id,
+            title: firstAnchorTitle,
+            description: 'Mi motivo prioritario',
+            image_url: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=600&q=80',
+            display_order: 1,
+            created_at: new Date().toISOString(),
+          });
+        }
+
+        set((state) => ({
+          trackers: [newTracker, ...state.trackers],
+          activeTrackerId: newId,
+          streaks: [newStreak, ...state.streaks],
+          anchors: newAnchors,
+          isOnboardingCompleted: true,
+          activeTab: 'dashboard',
+        }));
+      },
+
+      switchTracker: (trackerId) => {
+        set({ activeTrackerId: trackerId });
+      },
+
+      signMorningPledge: () => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const activeTracker = get().trackers.find((t) => t.id === get().activeTrackerId);
+        if (!activeTracker) return;
+
+        const alreadyPledged = get().pledges.some(
+          (p) => p.tracker_id === activeTracker.id && p.pledge_date === todayStr
+        );
+
+        if (alreadyPledged) return;
+
+        const newPledge: DailyPledge = {
+          id: `pld-${Date.now()}`,
+          tracker_id: activeTracker.id,
+          user_id: get().profile.id,
+          pledge_date: todayStr,
+          pledged_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        };
+
+        set((state) => ({
+          pledges: [newPledge, ...state.pledges],
+          isMorningPledgeOpen: false,
+        }));
+      },
+
+      submitEveningReview: (stayedSober, difficulty, triggers, notes) => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const activeTracker = get().trackers.find((t) => t.id === get().activeTrackerId);
+        if (!activeTracker) return;
+
+        const newReview: DailyReview = {
+          id: `rev-${todayStr}`,
+          tracker_id: activeTracker.id,
+          user_id: get().profile.id,
+          review_date: todayStr,
+          stayed_sober: stayedSober,
+          difficulty_rating: difficulty,
+          triggers,
+          notes,
+          created_at: new Date().toISOString(),
+        };
+
+        // Filter out existing for today if updating
+        const filtered = get().reviews.filter(
+          (r) => !(r.tracker_id === activeTracker.id && r.review_date === todayStr)
+        );
+
+        set({
+          reviews: [newReview, ...filtered],
+          isEveningReviewOpen: false,
+        });
+
+        // If user reported relapse in evening review, trigger counter reset
+        if (!stayedSober) {
+          get().resetSobriety(new Date().toISOString(), notes || 'Recaída registrada en evaluación', triggers);
+        }
+      },
+
+      resetSobriety: (relapseTimestamp, reason, triggers) => {
+        const activeTracker = get().trackers.find((t) => t.id === get().activeTrackerId);
+        if (!activeTracker) return;
+
+        // 1. Close current active streak
+        const updatedStreaks = get().streaks.map((s) => {
+          if (s.tracker_id === activeTracker.id && !s.ended_at) {
+            return {
+              ...s,
+              ended_at: relapseTimestamp,
+              reset_reason: reason,
+              triggers_noted: triggers,
+            };
+          }
+          return s;
+        });
+
+        // 2. Open new streak
+        const newStreak: TrackerStreak = {
+          id: `strk-${Date.now()}`,
+          tracker_id: activeTracker.id,
+          started_at: relapseTimestamp,
+          created_at: new Date().toISOString(),
+        };
+
+        // 3. Update tracker start_date
+        const updatedTrackers = get().trackers.map((t) => {
+          if (t.id === activeTracker.id) {
+            return {
+              ...t,
+              start_date: relapseTimestamp,
+              updated_at: new Date().toISOString(),
+            };
+          }
+          return t;
+        });
+
+        // 4. Mark today's review as relapse
+        const todayStr = relapseTimestamp.split('T')[0];
+        const relapseReview: DailyReview = {
+          id: `rev-${todayStr}`,
+          tracker_id: activeTracker.id,
+          user_id: get().profile.id,
+          review_date: todayStr,
+          stayed_sober: false,
+          difficulty_rating: 5,
+          triggers,
+          notes: reason,
+          created_at: new Date().toISOString(),
+        };
+
+        const filteredReviews = get().reviews.filter(
+          (r) => !(r.tracker_id === activeTracker.id && r.review_date === todayStr)
+        );
+
+        set({
+          trackers: updatedTrackers,
+          streaks: [newStreak, ...updatedStreaks],
+          reviews: [relapseReview, ...filteredReviews],
+          isResetModalOpen: false,
+        });
+      },
+
+      logUrgeOvercome: (intensity, trigger, copingTool) => {
+        const activeTracker = get().trackers.find((t) => t.id === get().activeTrackerId);
+        if (!activeTracker) return;
+
+        const newLog: UrgeLog = {
+          id: `urg-${Date.now()}`,
+          tracker_id: activeTracker.id,
+          user_id: get().profile.id,
+          intensity,
+          trigger_detected: trigger,
+          coping_tool_used: copingTool,
+          overcame_urge: true,
+          created_at: new Date().toISOString(),
+        };
+
+        set((state) => ({
+          urgeLogs: [newLog, ...state.urgeLogs],
+        }));
+      },
+
+      addMotivationAnchor: (title, description, imageUrl) => {
+        const activeTracker = get().trackers.find((t) => t.id === get().activeTrackerId);
+        if (!activeTracker) return;
+
+        const newAnchor: MotivationAnchor = {
+          id: `anc-${Date.now()}`,
+          tracker_id: activeTracker.id,
+          user_id: get().profile.id,
+          title,
+          description,
+          image_url: imageUrl || 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=600&q=80',
+          display_order: get().anchors.length + 1,
+          created_at: new Date().toISOString(),
+        };
+
+        set((state) => ({
+          anchors: [...state.anchors, newAnchor],
+        }));
+      },
+
+      deleteMotivationAnchor: (id) => {
+        set((state) => ({
+          anchors: state.anchors.filter((a) => a.id !== id),
+        }));
+      },
+
+      addCommunityPost: (content, cohort, soberDays) => {
+        const newPost: CommunityPost = {
+          id: `post-${Date.now()}`,
+          author_alias: get().profile.anonymous_alias,
+          cohort_bucket: cohort,
+          sober_days_at_post: soberDays,
+          content,
+          cheers_count: 1,
+          user_has_cheered: true,
+          created_at: new Date().toISOString(),
+        };
+
+        set((state) => ({
+          communityPosts: [newPost, ...state.communityPosts],
+        }));
+      },
+
+      togglePostCheer: (postId) => {
+        set((state) => ({
+          communityPosts: state.communityPosts.map((p) => {
+            if (p.id === postId) {
+              const hasCheered = p.user_has_cheered;
+              return {
+                ...p,
+                cheers_count: hasCheered ? Math.max(0, p.cheers_count - 1) : p.cheers_count + 1,
+                user_has_cheered: !hasCheered,
+              };
+            }
+            return p;
+          }),
+        }));
+      },
+
+      resetToInitialDemo: () => {
+        const newStartDate = new Date(Date.now() - (14 * 86400 + 8 * 3600 + 42 * 60 + 19) * 1000).toISOString();
+        const tracker: Tracker = {
+          ...INITIAL_TRACKER,
+          start_date: newStartDate,
+        };
+        set({
+          profile: INITIAL_PROFILE,
+          trackers: [tracker],
+          activeTrackerId: tracker.id,
+          streaks: [{ id: 'strk-1', tracker_id: tracker.id, started_at: newStartDate, created_at: newStartDate }],
+          pledges: [{ id: 'pld-today', tracker_id: tracker.id, user_id: 'usr-default-01', pledge_date: new Date().toISOString().split('T')[0], pledged_at: new Date().toISOString(), created_at: new Date().toISOString() }],
+          reviews: generateInitialReviews(newStartDate),
+          anchors: INITIAL_ANCHORS,
+          urgeLogs: [
+            { id: 'urg-1', tracker_id: tracker.id, user_id: 'usr-default-01', intensity: 8, trigger_detected: 'Evento social', coping_tool_used: 'Respiración 4-7-8', overcame_urge: true, created_at: new Date(Date.now() - 86400000 * 3).toISOString() },
+            { id: 'urg-2', tracker_id: tracker.id, user_id: 'usr-default-01', intensity: 6, trigger_detected: 'Ansiedad / Estrés', coping_tool_used: 'Ver mis motivos personales', overcame_urge: true, created_at: new Date(Date.now() - 86400000 * 7).toISOString() },
+          ],
+          communityPosts: INITIAL_COMMUNITY_POSTS,
+          clockMode: 'detailed',
+          activeTab: 'dashboard',
+          isSOSOpen: false,
+          isMorningPledgeOpen: false,
+          isEveningReviewOpen: false,
+          isResetModalOpen: false,
+          isOnboardingCompleted: true,
+        });
+      },
+    }),
+    {
+      name: 'live00-sobriety-storage',
+    }
+  )
+);

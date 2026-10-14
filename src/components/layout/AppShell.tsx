@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
 import { useTrackerStore } from '../../store/useTrackerStore';
 import { TopTrackerSwitcher } from './TopTrackerSwitcher';
+import { InstallPwaBanner } from '../pwa/InstallPwaBanner';
 import { ShieldAlert, Clock, Calendar, Users, HeartHandshake } from 'lucide-react';
 
 interface AppShellProps {
@@ -78,6 +79,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onOpenOnboarding }
           <span>SOS</span>
         </button>
       </header>
+
+      {/* PWA Install Banner */}
+      <InstallPwaBanner />
 
       {/* Main Screen Content */}
       <main style={{ flex: 1, padding: '1.6rem', width: '100%' }}>

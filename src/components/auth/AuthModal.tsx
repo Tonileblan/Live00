@@ -64,10 +64,10 @@ export const AuthModal: React.FC = () => {
           });
         }
 
-        setSuccessMessage('¡Cuenta creada con éxito! Sincronizando tus datos...');
+        setSuccessMessage('¡Cuenta creada con éxito! Confirmación y bienvenida enviadas vía Acumbamail.');
         setTimeout(() => {
           handleClose();
-        }, 1200);
+        }, 1500);
 
       } else if (mode === 'login') {
         if (!email.trim() || !password.trim()) {

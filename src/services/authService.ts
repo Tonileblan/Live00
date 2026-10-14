@@ -106,6 +106,21 @@ export const authService = {
       }
     }
 
+    // Enviar confirmación y registrar en Acumbamail de forma segura vía Serverless Function
+    try {
+      await fetch('/api/acumbamail-subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          alias: trimmedAlias,
+          list_id: '1127337',
+        }),
+      });
+    } catch (acumbaErr) {
+      console.warn('Aviso al suscribir en Acumbamail:', acumbaErr);
+    }
+
     return data;
   },
 

@@ -47,11 +47,9 @@ export const InstallPwaBanner: React.FC = () => {
       if (choice.outcome === 'accepted') {
         setDeferredPrompt(null);
       }
-    } else if (isIos) {
-      setShowIosGuide(true);
     } else {
-      // Fallback for browsers that support install via browser menu
-      alert("Para instalar en tu dispositivo, abre el menú de tu navegador y pulsa 'Instalar aplicación' o 'Añadir a la pantalla de inicio'.");
+      // Fallback visual modal in DOM
+      setShowIosGuide(true);
     }
   };
 

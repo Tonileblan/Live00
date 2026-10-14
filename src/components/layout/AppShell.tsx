@@ -20,23 +20,26 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onOpenOnboarding }
       style={{
         display: 'flex',
         flexDirection: 'column',
-        minHeight: '100vh',
+        minHeight: '100dvh',
         width: '100%',
         position: 'relative',
-        paddingBottom: '8.4rem', // Space for bottom nav
+        paddingBottom: 'calc(8.4rem + env(safe-area-inset-bottom, 0px))',
       }}
     >
-      {/* Top Header */}
+      {/* Top Header - Safe Area Inset for iPhone Notch & Dynamic Island */}
       <header
         style={{
           position: 'sticky',
           top: 0,
           zIndex: 50,
-          background: 'rgba(11, 14, 20, 0.85)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
+          background: 'rgba(11, 14, 20, 0.92)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           borderBottom: '0.1rem solid var(--border-subtle)',
-          padding: '1.2rem 1.6rem',
+          paddingTop: 'calc(1.2rem + env(safe-area-inset-top, 0px))',
+          paddingBottom: '1.2rem',
+          paddingLeft: 'calc(1.6rem + env(safe-area-inset-left, 0px))',
+          paddingRight: 'calc(1.6rem + env(safe-area-inset-right, 0px))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -88,7 +91,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onOpenOnboarding }
         {children}
       </main>
 
-      {/* Bottom Navigation */}
+      {/* Bottom Navigation with Safe Area for Home Indicator */}
       <nav
         style={{
           position: 'fixed',
@@ -97,15 +100,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onOpenOnboarding }
           transform: 'translateX(-50%)',
           width: '100%',
           maxWidth: '48rem',
-          height: '7rem',
-          background: 'rgba(15, 20, 30, 0.94)',
+          height: 'calc(7rem + env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          background: 'rgba(15, 20, 30, 0.96)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           borderTop: '0.1rem solid var(--border-card)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-around',
-          padding: '0 0.8rem',
+          paddingLeft: '0.8rem',
+          paddingRight: '0.8rem',
           zIndex: 60,
           boxShadow: '0 -0.8rem 2.4rem rgba(0, 0, 0, 0.6)',
         }}

@@ -61,7 +61,10 @@ export const UrgeSurfingOverlay: React.FC = () => {
         flexDirection: 'column',
         alignItems: 'center',
         overflowY: 'auto',
-        padding: '2rem 1.6rem 4rem 1.6rem',
+        paddingTop: 'calc(1.6rem + env(safe-area-inset-top, 0px))',
+        paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'calc(1.6rem + env(safe-area-inset-left, 0px))',
+        paddingRight: 'calc(1.6rem + env(safe-area-inset-right, 0px))',
         animation: 'fadeIn 200ms ease',
       }}
     >

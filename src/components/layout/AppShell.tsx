@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react';
 import { useTrackerStore } from '../../store/useTrackerStore';
 import { TopTrackerSwitcher } from './TopTrackerSwitcher';
 import { InstallPwaBanner } from '../pwa/InstallPwaBanner';
-import { ShieldAlert, Clock, Calendar, Users, HeartHandshake } from 'lucide-react';
+import { ShieldAlert, Clock, Calendar, Users, HeartHandshake, UserPlus } from 'lucide-react';
 
 interface AppShellProps {
   children: ReactNode;
@@ -14,6 +14,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onOpenOnboarding }
   const setActiveTab = useTrackerStore((state) => state.setActiveTab);
   const openSOS = useTrackerStore((state) => state.openSOS);
   const profile = useTrackerStore((state) => state.profile);
+  const authUser = useTrackerStore((state) => state.authUser);
+  const setAuthModalOpen = useTrackerStore((state) => state.setAuthModalOpen);
+  const setProfileModalOpen = useTrackerStore((state) => state.setProfileModalOpen);
 
   return (
     <div
@@ -45,31 +48,66 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onOpenOnboarding }
           justifyContent: 'space-between',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
           <TopTrackerSwitcher onAddNewClick={onOpenOnboarding} />
-          <div
+
+          {/* Interactive Profile Badge */}
+          <button
+            onClick={() => setProfileModalOpen(true)}
+            className="touch-target"
             style={{
               fontSize: '1.2rem',
-              color: 'var(--text-muted)',
-              display: 'flex',
+              color: 'var(--text-primary)',
+              display: 'inline-flex',
               alignItems: 'center',
               gap: '0.6rem',
-              background: 'rgba(255, 255, 255, 0.04)',
-              padding: '0.4rem 0.8rem',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '0.1rem solid var(--border-subtle)',
+              padding: '0.5rem 0.9rem',
               borderRadius: 'var(--radius-full)',
+              cursor: 'pointer',
+              transition: 'background var(--transition-fast)',
             }}
+            aria-label={`Gestionar cuenta y perfil de ${profile.anonymous_alias}`}
           >
             <span
               style={{
-                width: '0.8rem',
-                height: '0.8rem',
+                width: '0.9rem',
+                height: '0.9rem',
                 borderRadius: '50%',
                 backgroundColor: profile.avatar_color,
                 display: 'inline-block',
+                boxShadow: `0 0 0.6rem ${profile.avatar_color}`,
               }}
             />
             <span style={{ fontWeight: 600 }}>{profile.anonymous_alias}</span>
-          </div>
+          </button>
+
+          {/* Create Account / Login Button for new users */}
+          {!authUser && (
+            <button
+              onClick={() => setAuthModalOpen(true)}
+              className="touch-target"
+              style={{
+                fontSize: '1.15rem',
+                color: 'var(--emerald-400)',
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '0.1rem solid var(--emerald-400)',
+                padding: '0.5rem 0.9rem',
+                borderRadius: 'var(--radius-full)',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                transition: 'background var(--transition-fast)',
+              }}
+              aria-label="Registrarse o iniciar sesión con nueva cuenta"
+            >
+              <UserPlus size={13} />
+              <span>Crear Cuenta</span>
+            </button>
+          )}
         </div>
 
         {/* Permanent SOS Emergency Button */}

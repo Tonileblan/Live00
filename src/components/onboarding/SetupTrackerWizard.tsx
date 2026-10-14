@@ -10,6 +10,7 @@ interface SetupTrackerWizardProps {
 export const SetupTrackerWizard: React.FC<SetupTrackerWizardProps> = ({ onComplete, onCancel }) => {
   const initNewTracker = useTrackerStore((state) => state.initNewTracker);
   const profile = useTrackerStore((state) => state.profile);
+  const updateUserProfile = useTrackerStore((state) => state.updateUserProfile);
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
@@ -38,6 +39,9 @@ export const SetupTrackerWizard: React.FC<SetupTrackerWizardProps> = ({ onComple
     const costPerDay = Number(((daysPerWeek * spendPerSession) / 7).toFixed(2));
     const timeSpentPerDay = Math.round((daysPerWeek * 120) / 7);
     const caloriesPerDay = Math.round((daysPerWeek * 700) / 7);
+
+    const chosenAlias = alias.trim() || profile.anonymous_alias;
+    updateUserProfile(chosenAlias, profile.avatar_color);
 
     initNewTracker(
       {

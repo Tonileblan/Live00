@@ -4,7 +4,7 @@
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. Perfiles de usuario (anónimos o autenticados)
+-- 1. Perfiles de usuario (vinculados a auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     anonymous_alias VARCHAR(50) NOT NULL UNIQUE,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS public.milestone_definitions (
 CREATE TABLE IF NOT EXISTS public.community_milestone_posts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     author_alias VARCHAR(50) NOT NULL,
-    cohort_bucket VARCHAR(30) NOT NULL, -- 'day_1_to_7', 'day_8_to_30', 'day_31_to_90', 'day_91_plus'
+    cohort_bucket VARCHAR(30) NOT NULL,
     sober_days_at_post INT NOT NULL,
     content TEXT NOT NULL,
     cheers_count INT NOT NULL DEFAULT 0,
@@ -118,9 +118,37 @@ CREATE TABLE IF NOT EXISTS public.community_post_cheers (
     UNIQUE(post_id, user_id)
 );
 
--- ============================================================================
--- TRIGGERS Y FUNCIONES
--- ============================================================================
+-- Trigger: Creación automática de perfil al registrarse en auth.users
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_alias VARCHAR(50);
+    v_color VARCHAR(20);
+BEGIN
+    v_alias := COALESCE(
+        NEW.raw_user_meta_data->>'anonymous_alias',
+        'Sobrio_' || SUBSTRING(REPLACE(NEW.id::text, '-', ''), 1, 6)
+    );
+    v_color := COALESCE(
+        NEW.raw_user_meta_data->>'avatar_color',
+        '#10B981'
+    );
+
+    INSERT INTO public.profiles (id, anonymous_alias, avatar_color)
+    VALUES (NEW.id, v_alias, v_color)
+    ON CONFLICT (id) DO UPDATE
+    SET anonymous_alias = EXCLUDED.anonymous_alias,
+        avatar_color = EXCLUDED.avatar_color,
+        updated_at = NOW();
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Trigger A: Al crear un Tracker, abrir automáticamente su primera racha
 CREATE OR REPLACE FUNCTION public.fn_init_first_streak()
@@ -134,8 +162,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trg_after_tracker_insert ON public.trackers;
 CREATE TRIGGER trg_after_tracker_insert
-AFTER INSERT ON public.trackers
-FOR EACH ROW EXECUTE FUNCTION public.fn_init_first_streak();
+    AFTER INSERT ON public.trackers
+    FOR EACH ROW EXECUTE FUNCTION public.fn_init_first_streak();
 
 -- Trigger B: Actualizar contador de Cheers atómicamente
 CREATE OR REPLACE FUNCTION public.fn_update_cheers_counter()
@@ -156,43 +184,78 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trg_cheers_counter ON public.community_post_cheers;
 CREATE TRIGGER trg_cheers_counter
-AFTER INSERT OR DELETE ON public.community_post_cheers
-FOR EACH ROW EXECUTE FUNCTION public.fn_update_cheers_counter();
+    AFTER INSERT OR DELETE ON public.community_post_cheers
+    FOR EACH ROW EXECUTE FUNCTION public.fn_update_cheers_counter();
 
--- RPC: Reinicio Atómico de Sobriedad con preservación de racha
-CREATE OR REPLACE FUNCTION public.rpc_reset_sobriety_counter(
-    p_tracker_id UUID,
-    p_relapse_timestamp TIMESTAMPTZ,
-    p_reason TEXT,
-    p_triggers TEXT[]
-)
-RETURNS VOID AS $$
-BEGIN
-    -- 1. Cerrar racha actual
-    UPDATE public.tracker_streaks
-    SET ended_at = p_relapse_timestamp,
-        reset_reason = p_reason,
-        triggers_noted = p_triggers
-    WHERE tracker_id = p_tracker_id AND ended_at IS NULL;
+-- Enable RLS on all tables
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.trackers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tracker_streaks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_pledges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.motivation_anchors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.urge_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.milestone_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.community_milestone_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.community_post_cheers ENABLE ROW LEVEL SECURITY;
 
-    -- 2. Abrir nueva racha
-    INSERT INTO public.tracker_streaks (tracker_id, started_at)
-    VALUES (p_tracker_id, p_relapse_timestamp);
+-- Drop existing policies if any
+DROP POLICY IF EXISTS "Allow read profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 
-    -- 3. Actualizar fecha en el tracker
-    UPDATE public.trackers
-    SET start_date = p_relapse_timestamp,
-        updated_at = NOW()
-    WHERE id = p_tracker_id;
+DROP POLICY IF EXISTS "Users manage own trackers" ON public.trackers;
+DROP POLICY IF EXISTS "Users manage streaks" ON public.tracker_streaks;
+DROP POLICY IF EXISTS "Users manage pledges" ON public.daily_pledges;
+DROP POLICY IF EXISTS "Users manage reviews" ON public.daily_reviews;
+DROP POLICY IF EXISTS "Users manage anchors" ON public.motivation_anchors;
+DROP POLICY IF EXISTS "Users manage urge logs" ON public.urge_logs;
+DROP POLICY IF EXISTS "Allow read milestones" ON public.milestone_definitions;
+DROP POLICY IF EXISTS "Allow read posts" ON public.community_milestone_posts;
+DROP POLICY IF EXISTS "Allow authenticated insert posts" ON public.community_milestone_posts;
+DROP POLICY IF EXISTS "Users manage cheers" ON public.community_post_cheers;
 
-    -- 4. Registrar en diario como recaída
-    INSERT INTO public.daily_reviews (tracker_id, user_id, review_date, stayed_sober, difficulty_rating, triggers, notes)
-    SELECT p_tracker_id, user_id, p_relapse_timestamp::DATE, FALSE, 5, p_triggers, p_reason
-    FROM public.trackers WHERE id = p_tracker_id
-    ON CONFLICT (tracker_id, review_date)
-    DO UPDATE SET stayed_sober = FALSE, difficulty_rating = 5, triggers = p_triggers, notes = p_reason;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- Create Policies according to Supabase best practices
+CREATE POLICY "Allow read profiles" ON public.profiles
+    FOR SELECT TO authenticated, anon USING (true);
+
+CREATE POLICY "Users can insert own profile" ON public.profiles
+    FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = id);
+
+CREATE POLICY "Users can update own profile" ON public.profiles
+    FOR UPDATE TO authenticated USING ((select auth.uid()) = id) WITH CHECK ((select auth.uid()) = id);
+
+CREATE POLICY "Users manage own trackers" ON public.trackers
+    FOR ALL TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE POLICY "Users manage streaks" ON public.tracker_streaks
+    FOR ALL TO authenticated
+    USING (EXISTS (SELECT 1 FROM public.trackers t WHERE t.id = tracker_streaks.tracker_id AND t.user_id = (select auth.uid())))
+    WITH CHECK (EXISTS (SELECT 1 FROM public.trackers t WHERE t.id = tracker_streaks.tracker_id AND t.user_id = (select auth.uid())));
+
+CREATE POLICY "Users manage pledges" ON public.daily_pledges
+    FOR ALL TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE POLICY "Users manage reviews" ON public.daily_reviews
+    FOR ALL TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE POLICY "Users manage anchors" ON public.motivation_anchors
+    FOR ALL TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE POLICY "Users manage urge logs" ON public.urge_logs
+    FOR ALL TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE POLICY "Allow read milestones" ON public.milestone_definitions
+    FOR SELECT TO authenticated, anon USING (true);
+
+CREATE POLICY "Allow read posts" ON public.community_milestone_posts
+    FOR SELECT TO authenticated, anon USING (true);
+
+CREATE POLICY "Allow authenticated insert posts" ON public.community_milestone_posts
+    FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "Users manage cheers" ON public.community_post_cheers
+    FOR ALL TO authenticated USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 -- Semillas de Hitos
 INSERT INTO public.milestone_definitions (id, category, target_seconds, title, biological_fact, badge_icon)

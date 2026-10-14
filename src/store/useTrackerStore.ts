@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { User } from '@supabase/supabase-js';
+import { authService } from '../services/authService';
 import {
   Profile,
   Tracker,
@@ -162,6 +164,7 @@ function generateInitialReviews(startDateIso: string): DailyReview[] {
 
 interface TrackerStoreState {
   profile: Profile;
+  authUser: User | null;
   trackers: Tracker[];
   activeTrackerId: string;
   streaks: TrackerStreak[];
@@ -179,6 +182,8 @@ interface TrackerStoreState {
   isEveningReviewOpen: boolean;
   isResetModalOpen: boolean;
   isOnboardingCompleted: boolean;
+  isAuthModalOpen: boolean;
+  isProfileModalOpen: boolean;
 
   // Actions
   setClockMode: (mode: ClockViewMode) => void;
@@ -187,6 +192,13 @@ interface TrackerStoreState {
   openMorningPledge: (open: boolean) => void;
   openEveningReview: (open: boolean) => void;
   openResetModal: (open: boolean) => void;
+  setAuthModalOpen: (open: boolean) => void;
+  setProfileModalOpen: (open: boolean) => void;
+  setProfile: (profile: Profile) => void;
+  setAuthUser: (user: User | null) => void;
+  logoutUser: () => Promise<void>;
+  updateUserProfile: (alias: string, avatarColor: string) => Promise<void>;
+  initAuthListener: () => () => void;
   
   // Business logic actions
   initNewTracker: (trackerData: Partial<Tracker>, firstAnchorTitle?: string) => void;
@@ -260,6 +272,9 @@ export const useTrackerStore = create<TrackerStoreState>()(
       isEveningReviewOpen: false,
       isResetModalOpen: false,
       isOnboardingCompleted: true,
+      authUser: null,
+      isAuthModalOpen: false,
+      isProfileModalOpen: false,
 
       setClockMode: (mode) => set({ clockMode: mode }),
       setActiveTab: (tab) => set({ activeTab: tab }),
@@ -267,6 +282,70 @@ export const useTrackerStore = create<TrackerStoreState>()(
       openMorningPledge: (open) => set({ isMorningPledgeOpen: open }),
       openEveningReview: (open) => set({ isEveningReviewOpen: open }),
       openResetModal: (open) => set({ isResetModalOpen: open }),
+      setAuthModalOpen: (open) => set({ isAuthModalOpen: open }),
+      setProfileModalOpen: (open) => set({ isProfileModalOpen: open }),
+      setProfile: (profile) => set({ profile }),
+      setAuthUser: (user) => set({ authUser: user }),
+
+      logoutUser: async () => {
+        try {
+          await authService.signOut();
+        } catch (err) {
+          console.warn('Error al cerrar sesión:', err);
+        }
+        set({
+          authUser: null,
+          profile: INITIAL_PROFILE,
+        });
+      },
+
+      updateUserProfile: async (alias: string, avatarColor: string) => {
+        const currentProfile = get().profile;
+        const authUser = get().authUser;
+        const updated: Profile = {
+          ...currentProfile,
+          anonymous_alias: alias,
+          avatar_color: avatarColor,
+        };
+        set({ profile: updated });
+
+        if (authUser) {
+          try {
+            await authService.updateProfile(authUser.id, {
+              anonymous_alias: alias,
+              avatar_color: avatarColor,
+            });
+          } catch (err) {
+            console.error('Error al sincronizar perfil con Supabase:', err);
+          }
+        }
+      },
+
+      initAuthListener: () => {
+        authService.getSession().then((session) => {
+          if (session?.user) {
+            set({ authUser: session.user });
+            authService.getProfile(session.user.id).then((profile) => {
+              if (profile) {
+                set({ profile });
+              }
+            });
+          }
+        });
+
+        const { unsubscribe } = authService.onAuthStateChange((_session, user) => {
+          set({ authUser: user });
+          if (user) {
+            authService.getProfile(user.id).then((profile) => {
+              if (profile) {
+                set({ profile });
+              }
+            });
+          }
+        });
+
+        return unsubscribe;
+      },
 
       initNewTracker: (trackerData, firstAnchorTitle) => {
         const newId = `trk-${Date.now()}`;
@@ -552,6 +631,19 @@ export const useTrackerStore = create<TrackerStoreState>()(
     }),
     {
       name: 'live00-sobriety-storage',
+      partialize: (state) => ({
+        profile: state.profile,
+        trackers: state.trackers,
+        activeTrackerId: state.activeTrackerId,
+        streaks: state.streaks,
+        pledges: state.pledges,
+        reviews: state.reviews,
+        anchors: state.anchors,
+        urgeLogs: state.urgeLogs,
+        communityPosts: state.communityPosts,
+        clockMode: state.clockMode,
+        isOnboardingCompleted: state.isOnboardingCompleted,
+      }),
     }
   )
 );

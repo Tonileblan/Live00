@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTrackerStore } from './store/useTrackerStore';
 import { AppShell } from './components/layout/AppShell';
 import { DashboardView } from './components/dashboard/DashboardView';
@@ -10,11 +10,23 @@ import { MorningPledgeSheet } from './components/routines/MorningPledgeSheet';
 import { EveningReviewWizard } from './components/routines/EveningReviewWizard';
 import { RelapseResetModal } from './components/routines/RelapseResetModal';
 import { SetupTrackerWizard } from './components/onboarding/SetupTrackerWizard';
+import { AuthModal } from './components/auth/AuthModal';
+import { ProfileModal } from './components/auth/ProfileModal';
 
 export function App() {
   const activeTab = useTrackerStore((state) => state.activeTab);
   const isOnboardingCompleted = useTrackerStore((state) => state.isOnboardingCompleted);
+  const initAuthListener = useTrackerStore((state) => state.initAuthListener);
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(!isOnboardingCompleted);
+
+  useEffect(() => {
+    const unsubscribe = initAuthListener();
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [initAuthListener]);
 
   return (
     <>
@@ -30,6 +42,8 @@ export function App() {
       <MorningPledgeSheet />
       <EveningReviewWizard />
       <RelapseResetModal />
+      <AuthModal />
+      <ProfileModal />
 
       {/* Onboarding Wizard (on initial visit or when creating new tracker) */}
       {isOnboardingModalOpen && (

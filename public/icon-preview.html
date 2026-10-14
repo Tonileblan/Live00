@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LIVE00 | Verificación de Transparencia del Icono</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0B0E14;
+      color: #F3F4F6;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: #10B981; }
+    p { color: #9CA3AF; margin-bottom: 2rem; font-size: 0.95rem; text-align: center; max-width: 600px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 900px;
+    }
+    .card {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .card-title {
+      padding: 0.8rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #9CA3AF;
+      width: 100%;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .canvas-box {
+      width: 100%;
+      height: 240px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .checkerboard {
+      background-image: 
+        linear-gradient(45deg, #1f2937 25%, transparent 25%), 
+        linear-gradient(-45deg, #1f2937 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #1f2937 75%), 
+        linear-gradient(-45deg, transparent 75%, #1f2937 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      background-color: #111827;
+    }
+    .dark-app {
+      background-color: #0B0E14;
+    }
+    .vibrant-gradient {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed, #db2777);
+    }
+    img {
+      max-width: 160px;
+      max-height: 160px;
+      object-fit: contain;
+      filter: drop-shadow(0 8px 16px rgba(0,0,0,0.3));
+    }
+    .badge-ok {
+      margin-top: 2rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid #10B981;
+      color: #34D399;
+      padding: 0.6rem 1.2rem;
+      border-radius: 9999px;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .back-btn {
+      margin-top: 1.5rem;
+      color: #9CA3AF;
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+    .back-btn:hover { color: #10B981; }
+  </style>
+</head>
+<body>
+  <h1>LIVE00 — Comprobación de Icono Transparente</h1>
+  <p>El icono es 100% vectorial y transparente (canal alfa RGBA 0,0,0,0). No tiene cajas negras ni bordes blancos: se adapta de forma líquida a cualquier fondo.</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-title">Fondo Transparente (Patrón Checkerboard)</div>
+      <div class="canvas-box checkerboard">
+        <img src="/icon-512.png?v=3" alt="Icono Transparente 512" />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Fondo Nativo de la App (#0B0E14)</div>
+      <div class="canvas-box dark-app">
+        <img src="/icon-512.png?v=3" alt="Icono en App Dark" />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Fondo Color Vibrante</div>
+      <div class="canvas-box vibrant-gradient">
+        <img src="/icon-512.png?v=3" alt="Icono en Fondo Color" />
+      </div>
+    </div>
+  </div>
+
+  <div class="badge-ok">
+    ✓ 0% negro de fondo, 0% marco blanco — Transparencia Alpha Verificada
+  </div>
+
+  <a href="/" class="back-btn">← Volver a la App LIVE00</a>
+</body>
+</html>

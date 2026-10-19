@@ -181,6 +181,7 @@ interface TrackerStoreState {
   isMorningPledgeOpen: boolean;
   isEveningReviewOpen: boolean;
   isResetModalOpen: boolean;
+  isResetAllModalOpen: boolean;
   isOnboardingCompleted: boolean;
   isAuthModalOpen: boolean;
   isProfileModalOpen: boolean;
@@ -192,6 +193,7 @@ interface TrackerStoreState {
   openMorningPledge: (open: boolean) => void;
   openEveningReview: (open: boolean) => void;
   openResetModal: (open: boolean) => void;
+  openResetAllModal: (open: boolean) => void;
   setAuthModalOpen: (open: boolean) => void;
   setProfileModalOpen: (open: boolean) => void;
   setProfile: (profile: Profile) => void;
@@ -213,6 +215,7 @@ interface TrackerStoreState {
   togglePostCheer: (postId: string) => void;
   resetAppDataForNewUser: (user: User, alias: string, avatarColor: string) => void;
   resetToInitialDemo: () => void;
+  resetAllData: (mode: 'clean_zero' | 'reconfigure' | 'demo') => void;
 }
 
 export const useTrackerStore = create<TrackerStoreState>()(
@@ -272,6 +275,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
       isMorningPledgeOpen: false,
       isEveningReviewOpen: false,
       isResetModalOpen: false,
+      isResetAllModalOpen: false,
       isOnboardingCompleted: true,
       authUser: null,
       isAuthModalOpen: false,
@@ -283,6 +287,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
       openMorningPledge: (open) => set({ isMorningPledgeOpen: open }),
       openEveningReview: (open) => set({ isEveningReviewOpen: open }),
       openResetModal: (open) => set({ isResetModalOpen: open }),
+      openResetAllModal: (open) => set({ isResetAllModalOpen: open }),
       setAuthModalOpen: (open) => set({ isAuthModalOpen: open }),
       setProfileModalOpen: (open) => set({ isProfileModalOpen: open }),
       setProfile: (profile) =>
@@ -711,9 +716,87 @@ export const useTrackerStore = create<TrackerStoreState>()(
           isMorningPledgeOpen: false,
           isEveningReviewOpen: false,
           isResetModalOpen: false,
+          isResetAllModalOpen: false,
           isOnboardingCompleted: false,
           isAuthModalOpen: false,
           isProfileModalOpen: false,
+        });
+      },
+
+      resetAllData: (mode) => {
+        if (mode === 'demo') {
+          get().resetToInitialDemo();
+          set({
+            isResetAllModalOpen: false,
+            isProfileModalOpen: false,
+            isResetModalOpen: false,
+            activeTab: 'dashboard',
+          });
+          return;
+        }
+
+        const nowIso = new Date().toISOString();
+        const currentUserId = get().authUser?.id || get().profile.id || 'usr-default-01';
+
+        // Reset trackers to start from this exact moment
+        const currentTrackers = get().trackers;
+        const resetTrackers: Tracker[] = currentTrackers.length > 0
+          ? currentTrackers.map((t) => ({
+              ...t,
+              start_date: nowIso,
+            }))
+          : [
+              {
+                ...INITIAL_TRACKER,
+                id: `trk-${Date.now()}`,
+                user_id: currentUserId,
+                start_date: nowIso,
+              },
+            ];
+
+        const activeId = resetTrackers[0].id;
+
+        const newStreaks: TrackerStreak[] = resetTrackers.map((t) => ({
+          id: `strk-${Date.now()}-${t.id}`,
+          tracker_id: t.id,
+          started_at: nowIso,
+          created_at: nowIso,
+        }));
+
+        const cleanStarterAnchor: MotivationAnchor = {
+          id: `anc-${Date.now()}`,
+          tracker_id: activeId,
+          user_id: currentUserId,
+          title: 'Recuperar mi claridad mental y control',
+          description: 'Vivir cada día con total lucidez, salud y libertad.',
+          image_url: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=600&q=80',
+          display_order: 1,
+          created_at: nowIso,
+        };
+
+        const cleanCommunityPosts = get().communityPosts.map((p) => ({
+          ...p,
+          user_has_cheered: false,
+        }));
+
+        set({
+          trackers: resetTrackers,
+          activeTrackerId: activeId,
+          streaks: newStreaks,
+          pledges: [],
+          reviews: [],
+          urgeLogs: [],
+          anchors: [cleanStarterAnchor],
+          communityPosts: cleanCommunityPosts,
+          clockMode: 'detailed',
+          activeTab: 'dashboard',
+          isSOSOpen: false,
+          isMorningPledgeOpen: false,
+          isEveningReviewOpen: false,
+          isResetModalOpen: false,
+          isResetAllModalOpen: false,
+          isProfileModalOpen: false,
+          isOnboardingCompleted: mode === 'clean_zero',
         });
       },
     }),

@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useTrackerStore } from '../../store/useTrackerStore';
-import { Heart, Plus, Trash2, Image as ImageIcon, Sparkles, RefreshCw } from 'lucide-react';
+import { Heart, Plus, Trash2, Image as ImageIcon, Sparkles, RefreshCw, RotateCcw } from 'lucide-react';
 
 export const MotivesView: React.FC = () => {
   const anchors = useTrackerStore((state) => state.anchors);
   const addMotivationAnchor = useTrackerStore((state) => state.addMotivationAnchor);
   const deleteMotivationAnchor = useTrackerStore((state) => state.deleteMotivationAnchor);
-  const resetToInitialDemo = useTrackerStore((state) => state.resetToInitialDemo);
+  const openResetAllModal = useTrackerStore((state) => state.openResetAllModal);
 
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -200,24 +200,29 @@ export const MotivesView: React.FC = () => {
         ))}
       </div>
 
-      {/* Demo helper */}
-      <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+      {/* Reset Options Helper */}
+      <div style={{ marginTop: '2.4rem', textAlign: 'center' }}>
         <button
-          onClick={resetToInitialDemo}
+          onClick={() => openResetAllModal(true)}
           className="touch-target"
           style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-muted)',
-            fontSize: '1.2rem',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '0.1rem solid var(--border-subtle)',
+            borderRadius: 'var(--radius-full)',
+            padding: '0.8rem 1.6rem',
+            color: 'var(--text-secondary)',
+            fontSize: '1.25rem',
+            fontWeight: 600,
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.6rem',
+            gap: '0.8rem',
+            transition: 'all var(--transition-fast)',
           }}
+          aria-label="Abrir opciones para reiniciar toda la aplicación"
         >
-          <RefreshCw size={12} />
-          <span>Restablecer datos demo de ejemplo (14 Días)</span>
+          <RotateCcw size={14} color="var(--emerald-400)" />
+          <span>Reiniciar Todo / Opciones de Restablecimiento</span>
         </button>
       </div>
     </div>

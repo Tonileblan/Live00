@@ -16,6 +16,7 @@ const COMMON_TRIGGERS = [
 export const RelapseResetModal: React.FC = () => {
   const isOpen = useTrackerStore((state) => state.isResetModalOpen);
   const openResetModal = useTrackerStore((state) => state.openResetModal);
+  const openResetAllModal = useTrackerStore((state) => state.openResetAllModal);
   const openSOS = useTrackerStore((state) => state.openSOS);
   const resetSobriety = useTrackerStore((state) => state.resetSobriety);
 
@@ -123,6 +124,29 @@ export const RelapseResetModal: React.FC = () => {
                 <RefreshCcw size={18} />
                 <span>Ya ocurrió el consumo (Continuar reinicio)</span>
               </button>
+
+              {/* Alternative: Reset everything completely */}
+              <div style={{ textAlign: 'center', marginTop: '0.6rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openResetModal(false);
+                    openResetAllModal(true);
+                  }}
+                  className="touch-target"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    fontSize: '1.25rem',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                  aria-label="Abrir opciones para reiniciar toda la app de cero"
+                >
+                  ¿Deseas reiniciar toda la app de cero en lugar de solo registrar una recaída?
+                </button>
+              </div>
             </div>
           </div>
         )}

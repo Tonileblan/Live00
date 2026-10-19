@@ -9,6 +9,7 @@ import { UrgeSurfingOverlay } from './components/sos/UrgeSurfingOverlay';
 import { MorningPledgeSheet } from './components/routines/MorningPledgeSheet';
 import { EveningReviewWizard } from './components/routines/EveningReviewWizard';
 import { RelapseResetModal } from './components/routines/RelapseResetModal';
+import { ResetAllModal } from './components/routines/ResetAllModal';
 import { SetupTrackerWizard } from './components/onboarding/SetupTrackerWizard';
 import { AuthModal } from './components/auth/AuthModal';
 import { ProfileModal } from './components/auth/ProfileModal';
@@ -48,6 +49,7 @@ export function App() {
       <MorningPledgeSheet />
       <EveningReviewWizard />
       <RelapseResetModal />
+      <ResetAllModal />
       <AuthModal />
       <ProfileModal />
 

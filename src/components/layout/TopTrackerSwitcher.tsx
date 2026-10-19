@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useTrackerStore } from '../../store/useTrackerStore';
-import { ChevronDown, Plus, Check } from 'lucide-react';
+import { ChevronDown, Plus, Check, RotateCcw } from 'lucide-react';
 
 export const TopTrackerSwitcher: React.FC<{ onAddNewClick: () => void }> = ({ onAddNewClick }) => {
   const [isOpen, setIsOpen] = useState(false);
   const trackers = useTrackerStore((state) => state.trackers);
   const activeTrackerId = useTrackerStore((state) => state.activeTrackerId);
   const switchTracker = useTrackerStore((state) => state.switchTracker);
+  const openResetAllModal = useTrackerStore((state) => state.openResetAllModal);
 
   const activeTracker = trackers.find((t) => t.id === activeTrackerId) || trackers[0];
 
@@ -116,6 +117,30 @@ export const TopTrackerSwitcher: React.FC<{ onAddNewClick: () => void }> = ({ on
             >
               <Plus size={16} color="var(--emerald-400)" />
               <span>Añadir nuevo tracker</span>
+            </button>
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                openResetAllModal(true);
+              }}
+              className="touch-target"
+              style={{
+                width: '100%',
+                justifyContent: 'flex-start',
+                gap: '0.8rem',
+                padding: '0.8rem 1.2rem',
+                borderRadius: 'var(--radius-sm)',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--coral-400)',
+                cursor: 'pointer',
+                fontSize: '1.3rem',
+                fontWeight: 600,
+              }}
+              aria-label="Reiniciar toda la aplicación"
+            >
+              <RotateCcw size={16} />
+              <span>Reiniciar todo</span>
             </button>
           </div>
         </>

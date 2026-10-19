@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTrackerStore } from '../../store/useTrackerStore';
 import { authService } from '../../services/authService';
-import { X, User as UserIcon, Mail, LogOut, UserPlus, Check, Sparkles, RefreshCw, ShieldCheck } from 'lucide-react';
+import { X, User as UserIcon, Mail, LogOut, UserPlus, Check, Sparkles, RefreshCw, ShieldCheck, RotateCcw } from 'lucide-react';
 
 const AVATAR_COLORS = [
   '#10B981',
@@ -16,6 +16,7 @@ export const ProfileModal: React.FC = () => {
   const isProfileModalOpen = useTrackerStore((state) => state.isProfileModalOpen);
   const setProfileModalOpen = useTrackerStore((state) => state.setProfileModalOpen);
   const setAuthModalOpen = useTrackerStore((state) => state.setAuthModalOpen);
+  const openResetAllModal = useTrackerStore((state) => state.openResetAllModal);
   const profile = useTrackerStore((state) => state.profile);
   const authUser = useTrackerStore((state) => state.authUser);
   const setProfile = useTrackerStore((state) => state.setProfile);
@@ -310,6 +311,36 @@ export const ProfileModal: React.FC = () => {
               <span>Cerrar Sesión</span>
             </button>
           )}
+
+          {/* Reset All App Data Button */}
+          <button
+            type="button"
+            onClick={() => {
+              handleClose();
+              openResetAllModal(true);
+            }}
+            className="touch-target"
+            style={{
+              width: '100%',
+              padding: '1.2rem',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '0.1rem solid rgba(239, 68, 68, 0.25)',
+              color: 'var(--coral-400)',
+              fontWeight: 700,
+              fontSize: '1.35rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.8rem',
+              marginTop: '0.4rem',
+            }}
+            aria-label="Abrir opciones para reiniciar toda la aplicación y empezar de cero"
+          >
+            <RotateCcw size={16} />
+            <span>Reiniciar Todo / Empezar de Cero</span>
+          </button>
         </div>
       </div>
     </div>

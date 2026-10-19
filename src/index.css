@@ -342,3 +342,12 @@ h1, h2, h3, h4, .font-display {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.03); }
 }
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spinSlow 1s linear infinite;
+}

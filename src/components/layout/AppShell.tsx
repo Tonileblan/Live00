@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react';
 import { useTrackerStore } from '../../store/useTrackerStore';
 import { TopTrackerSwitcher } from './TopTrackerSwitcher';
 import { InstallPwaBanner } from '../pwa/InstallPwaBanner';
-import { ShieldAlert, Clock, Calendar, Users, HeartHandshake, UserPlus } from 'lucide-react';
+import { ShieldAlert, Clock, Calendar, Users, HeartHandshake, UserPlus, Cloud, Loader2 } from 'lucide-react';
 
 interface AppShellProps {
   children: ReactNode;
@@ -15,6 +15,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onOpenOnboarding }
   const openSOS = useTrackerStore((state) => state.openSOS);
   const profile = useTrackerStore((state) => state.profile);
   const authUser = useTrackerStore((state) => state.authUser);
+  const isSyncing = useTrackerStore((state) => state.isSyncing);
   const setAuthModalOpen = useTrackerStore((state) => state.setAuthModalOpen);
   const setProfileModalOpen = useTrackerStore((state) => state.setProfileModalOpen);
 
@@ -82,6 +83,38 @@ export const AppShell: React.FC<AppShellProps> = ({ children, onOpenOnboarding }
             />
             <span style={{ fontWeight: 600 }}>{profile.anonymous_alias}</span>
           </button>
+
+          {/* Cloud Sync Status Indicator */}
+          {authUser && (
+            <div
+              style={{
+                fontSize: '1.1rem',
+                color: isSyncing ? 'var(--amber-400)' : 'var(--emerald-400)',
+                background: isSyncing ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.08)',
+                border: `0.1rem solid ${isSyncing ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.25)'}`,
+                padding: '0.4rem 0.8rem',
+                borderRadius: 'var(--radius-full)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontWeight: 600,
+              }}
+              aria-live="polite"
+              title={isSyncing ? 'Sincronizando con Supabase...' : 'Datos sincronizados en la nube (Web & Móvil)'}
+            >
+              {isSyncing ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" />
+                  <span>Sincronizando</span>
+                </>
+              ) : (
+                <>
+                  <Cloud size={12} />
+                  <span>Nube activa</span>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Create Account / Login Button for new users */}
           {!authUser && (

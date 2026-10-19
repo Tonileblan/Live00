@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from '@supabase/supabase-js';
 import { authService } from '../services/authService';
+import { syncService, ensureUuid } from '../services/syncService';
 import {
   Profile,
   Tracker,
@@ -152,7 +153,7 @@ function generateInitialReviews(
     // Vary difficulty for demonstration and realism
     const isHardDay = i % 7 === 4;
     reviews.push({
-      id: `rev-${dateStr}-${trackerId}`,
+      id: ensureUuid(),
       tracker_id: trackerId,
       user_id: userId,
       review_date: dateStr,
@@ -179,6 +180,7 @@ interface TrackerStoreState {
   communityPosts: CommunityPost[];
   
   // UI State
+  isSyncing: boolean;
   clockMode: ClockViewMode;
   activeTab: 'dashboard' | 'diary' | 'community' | 'profile';
   isSOSOpen: boolean;
@@ -192,6 +194,7 @@ interface TrackerStoreState {
   isProfileModalOpen: boolean;
 
   // Actions
+  syncWithCloud: (targetUserId?: string) => Promise<void>;
   setClockMode: (mode: ClockViewMode) => void;
   setActiveTab: (tab: 'dashboard' | 'diary' | 'community' | 'profile') => void;
   openSOS: (open: boolean) => void;
@@ -276,6 +279,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
       communityPosts: INITIAL_COMMUNITY_POSTS,
 
       // UI
+      isSyncing: false,
       clockMode: 'detailed',
       activeTab: 'dashboard',
       isSOSOpen: false,
@@ -288,6 +292,63 @@ export const useTrackerStore = create<TrackerStoreState>()(
       authUser: null,
       isAuthModalOpen: false,
       isProfileModalOpen: false,
+
+      syncWithCloud: async (targetUserId?: string) => {
+        const userId =
+          targetUserId ||
+          get().authUser?.id ||
+          (get().profile.id !== 'usr-default-01' ? get().profile.id : null);
+        if (!userId) return;
+
+        set({ isSyncing: true });
+        try {
+          // 1. Consultar si hay datos en Supabase para este usuario
+          const cloudData = await syncService.fetchCloudUserData(userId);
+
+          if (cloudData.hasData && cloudData.trackers.length > 0) {
+            // La nube tiene datos -> Single Source of Truth para multidispositivo (web + móvil)
+            const activeId = cloudData.trackers[0].id;
+            set({
+              trackers: cloudData.trackers,
+              activeTrackerId: activeId,
+              streaks: cloudData.streaks,
+              pledges: cloudData.pledges,
+              reviews: cloudData.reviews,
+              anchors: cloudData.anchors.length > 0 ? cloudData.anchors : get().anchors,
+              urgeLogs: cloudData.urgeLogs,
+              isOnboardingCompleted: true,
+            });
+          } else {
+            // La nube no tiene trackers aún para este usuario.
+            // Si el estado local tiene datos, sincronizarlos a la nube
+            const localTrackers = get().trackers;
+            if (localTrackers.length > 0) {
+              const uploaded = await syncService.uploadLocalDataToCloud(userId, {
+                trackers: localTrackers,
+                streaks: get().streaks,
+                pledges: get().pledges,
+                reviews: get().reviews,
+                anchors: get().anchors,
+                urgeLogs: get().urgeLogs,
+              });
+
+              set({
+                trackers: uploaded.trackers,
+                activeTrackerId: uploaded.trackers[0]?.id || get().activeTrackerId,
+                streaks: uploaded.streaks,
+                pledges: uploaded.pledges,
+                reviews: uploaded.reviews,
+                anchors: uploaded.anchors,
+                urgeLogs: uploaded.urgeLogs,
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Error durante syncWithCloud:', err);
+        } finally {
+          set({ isSyncing: false });
+        }
+      },
 
       setClockMode: (mode) => set({ clockMode: mode }),
       setActiveTab: (tab) => set({ activeTab: tab }),
@@ -360,6 +421,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
                 get().setProfile(profile);
               }
             });
+            get().syncWithCloud(session.user.id);
           }
         });
 
@@ -371,6 +433,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
                 get().setProfile(profile);
               }
             });
+            get().syncWithCloud(user.id);
           }
         });
 
@@ -378,11 +441,12 @@ export const useTrackerStore = create<TrackerStoreState>()(
       },
 
       initNewTracker: (trackerData, firstAnchorTitle) => {
-        const newId = `trk-${Date.now()}`;
+        const currentUserId = get().authUser?.id || get().profile.id;
+        const newId = ensureUuid();
         const newStartDate = trackerData.start_date || new Date().toISOString();
         const newTracker: Tracker = {
           id: newId,
-          user_id: get().profile.id,
+          user_id: currentUserId,
           category: trackerData.category || 'alcohol',
           habit_name: trackerData.habit_name || 'Alcohol',
           start_date: newStartDate,
@@ -395,28 +459,33 @@ export const useTrackerStore = create<TrackerStoreState>()(
         };
 
         const newStreak: TrackerStreak = {
-          id: `strk-${Date.now()}`,
+          id: ensureUuid(),
           tracker_id: newId,
           started_at: newStartDate,
           created_at: new Date().toISOString(),
         };
 
         let newAnchors = [...get().anchors];
+        let starterAnchor: MotivationAnchor | undefined;
         if (firstAnchorTitle) {
-          newAnchors.unshift({
-            id: `anc-${Date.now()}`,
+          starterAnchor = {
+            id: ensureUuid(),
             tracker_id: newId,
-            user_id: get().profile.id,
+            user_id: currentUserId,
             title: firstAnchorTitle,
             description: 'Mi motivo prioritario',
-            image_url: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=600&q=80',
+            image_url:
+              'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=600&q=80',
             display_order: 1,
             created_at: new Date().toISOString(),
-          });
+          };
+          newAnchors.unshift(starterAnchor);
         }
 
-        const generatedReviews = generateInitialReviews(newStartDate, newId, get().profile.id);
-        const isFreshUser = !get().isOnboardingCompleted || get().trackers.some((t) => t.user_id === 'usr-default-01');
+        const generatedReviews = generateInitialReviews(newStartDate, newId, currentUserId);
+        const isFreshUser =
+          !get().isOnboardingCompleted ||
+          get().trackers.some((t) => t.user_id === 'usr-default-01');
         const updatedTrackers = isFreshUser ? [newTracker] : [newTracker, ...get().trackers];
         const updatedStreaks = isFreshUser ? [newStreak] : [newStreak, ...get().streaks];
         const updatedReviews = isFreshUser ? generatedReviews : [...generatedReviews, ...get().reviews];
@@ -430,6 +499,22 @@ export const useTrackerStore = create<TrackerStoreState>()(
           isOnboardingCompleted: true,
           activeTab: 'dashboard',
         });
+
+        if (get().authUser) {
+          syncService.syncTracker(newTracker);
+          syncService.syncStreak(newStreak);
+          if (starterAnchor) syncService.syncAnchor(starterAnchor);
+          if (generatedReviews.length > 0) {
+            syncService.uploadLocalDataToCloud(get().authUser!.id, {
+              trackers: updatedTrackers,
+              streaks: updatedStreaks,
+              pledges: get().pledges,
+              reviews: updatedReviews,
+              anchors: newAnchors,
+              urgeLogs: get().urgeLogs,
+            });
+          }
+        }
       },
 
       switchTracker: (trackerId) => {
@@ -449,7 +534,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
         if (!streaks.some((s) => s.tracker_id === trackerId)) {
           streaks = [
             {
-              id: `strk-${Date.now()}`,
+              id: ensureUuid(),
               tracker_id: trackerId,
               started_at: newStartDate,
               created_at: new Date().toISOString(),
@@ -460,13 +545,29 @@ export const useTrackerStore = create<TrackerStoreState>()(
 
         const generatedReviews = generateInitialReviews(newStartDate, trackerId, currentUserId);
         const otherReviews = get().reviews.filter((r) => r.tracker_id !== trackerId);
+        const updatedReviews = [...generatedReviews, ...otherReviews];
 
         set({
           trackers,
           streaks,
-          reviews: [...generatedReviews, ...otherReviews],
+          reviews: updatedReviews,
           isAdjustCleanTimeModalOpen: false,
         });
+
+        if (get().authUser) {
+          const targetTracker = trackers.find((t) => t.id === trackerId);
+          if (targetTracker) syncService.syncTracker(targetTracker);
+          const targetStreak = streaks.find((s) => s.tracker_id === trackerId);
+          if (targetStreak) syncService.syncStreak(targetStreak);
+          syncService.uploadLocalDataToCloud(get().authUser!.id, {
+            trackers,
+            streaks,
+            pledges: get().pledges,
+            reviews: updatedReviews,
+            anchors: get().anchors,
+            urgeLogs: get().urgeLogs,
+          });
+        }
       },
 
       signMorningPledge: () => {
@@ -481,9 +582,9 @@ export const useTrackerStore = create<TrackerStoreState>()(
         if (alreadyPledged) return;
 
         const newPledge: DailyPledge = {
-          id: `pld-${Date.now()}`,
+          id: ensureUuid(),
           tracker_id: activeTracker.id,
-          user_id: get().profile.id,
+          user_id: get().authUser?.id || get().profile.id,
           pledge_date: todayStr,
           pledged_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
@@ -493,6 +594,10 @@ export const useTrackerStore = create<TrackerStoreState>()(
           pledges: [newPledge, ...state.pledges],
           isMorningPledgeOpen: false,
         }));
+
+        if (get().authUser) {
+          syncService.syncPledge(newPledge);
+        }
       },
 
       submitEveningReview: (stayedSober, difficulty, triggers, notes) => {
@@ -501,9 +606,9 @@ export const useTrackerStore = create<TrackerStoreState>()(
         if (!activeTracker) return;
 
         const newReview: DailyReview = {
-          id: `rev-${todayStr}`,
+          id: ensureUuid(),
           tracker_id: activeTracker.id,
-          user_id: get().profile.id,
+          user_id: get().authUser?.id || get().profile.id,
           review_date: todayStr,
           stayed_sober: stayedSober,
           difficulty_rating: difficulty,
@@ -521,6 +626,10 @@ export const useTrackerStore = create<TrackerStoreState>()(
           reviews: [newReview, ...filtered],
           isEveningReviewOpen: false,
         });
+
+        if (get().authUser) {
+          syncService.syncReview(newReview);
+        }
 
         // If user reported relapse in evening review, trigger counter reset
         if (!stayedSober) {
@@ -547,20 +656,22 @@ export const useTrackerStore = create<TrackerStoreState>()(
 
         // 2. Open new streak
         const newStreak: TrackerStreak = {
-          id: `strk-${Date.now()}`,
+          id: ensureUuid(),
           tracker_id: activeTracker.id,
           started_at: relapseTimestamp,
           created_at: new Date().toISOString(),
         };
 
         // 3. Update tracker start_date
+        let updatedTracker: Tracker | undefined;
         const updatedTrackers = get().trackers.map((t) => {
           if (t.id === activeTracker.id) {
-            return {
+            updatedTracker = {
               ...t,
               start_date: relapseTimestamp,
               updated_at: new Date().toISOString(),
             };
+            return updatedTracker;
           }
           return t;
         });
@@ -568,9 +679,9 @@ export const useTrackerStore = create<TrackerStoreState>()(
         // 4. Mark today's review as relapse
         const todayStr = relapseTimestamp.split('T')[0];
         const relapseReview: DailyReview = {
-          id: `rev-${todayStr}`,
+          id: ensureUuid(),
           tracker_id: activeTracker.id,
-          user_id: get().profile.id,
+          user_id: get().authUser?.id || get().profile.id,
           review_date: todayStr,
           stayed_sober: false,
           difficulty_rating: 5,
@@ -589,6 +700,12 @@ export const useTrackerStore = create<TrackerStoreState>()(
           reviews: [relapseReview, ...filteredReviews],
           isResetModalOpen: false,
         });
+
+        if (get().authUser) {
+          if (updatedTracker) syncService.syncTracker(updatedTracker);
+          syncService.syncStreak(newStreak);
+          syncService.syncReview(relapseReview);
+        }
       },
 
       logUrgeOvercome: (intensity, trigger, copingTool) => {
@@ -596,9 +713,9 @@ export const useTrackerStore = create<TrackerStoreState>()(
         if (!activeTracker) return;
 
         const newLog: UrgeLog = {
-          id: `urg-${Date.now()}`,
+          id: ensureUuid(),
           tracker_id: activeTracker.id,
-          user_id: get().profile.id,
+          user_id: get().authUser?.id || get().profile.id,
           intensity,
           trigger_detected: trigger,
           coping_tool_used: copingTool,
@@ -609,6 +726,10 @@ export const useTrackerStore = create<TrackerStoreState>()(
         set((state) => ({
           urgeLogs: [newLog, ...state.urgeLogs],
         }));
+
+        if (get().authUser) {
+          syncService.syncUrgeLog(newLog);
+        }
       },
 
       addMotivationAnchor: (title, description, imageUrl) => {
@@ -616,9 +737,9 @@ export const useTrackerStore = create<TrackerStoreState>()(
         if (!activeTracker) return;
 
         const newAnchor: MotivationAnchor = {
-          id: `anc-${Date.now()}`,
+          id: ensureUuid(),
           tracker_id: activeTracker.id,
-          user_id: get().profile.id,
+          user_id: get().authUser?.id || get().profile.id,
           title,
           description,
           image_url: imageUrl || 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=600&q=80',
@@ -629,12 +750,20 @@ export const useTrackerStore = create<TrackerStoreState>()(
         set((state) => ({
           anchors: [...state.anchors, newAnchor],
         }));
+
+        if (get().authUser) {
+          syncService.syncAnchor(newAnchor);
+        }
       },
 
       deleteMotivationAnchor: (id) => {
         set((state) => ({
           anchors: state.anchors.filter((a) => a.id !== id),
         }));
+
+        if (get().authUser) {
+          syncService.deleteAnchor(id);
+        }
       },
 
       addCommunityPost: (content, cohort, soberDays) => {
@@ -702,7 +831,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
       resetAppDataForNewUser: (user: User, alias: string, avatarColor: string, initialStartDate?: string) => {
         const nowIso = new Date().toISOString();
         const effectiveStartDate = initialStartDate || nowIso;
-        const newTrackerId = `trk-${Date.now()}`;
+        const newTrackerId = ensureUuid();
         const newTracker: Tracker = {
           id: newTrackerId,
           user_id: user.id,
@@ -718,14 +847,14 @@ export const useTrackerStore = create<TrackerStoreState>()(
         };
 
         const newStreak: TrackerStreak = {
-          id: `strk-${Date.now()}`,
+          id: ensureUuid(),
           tracker_id: newTrackerId,
           started_at: effectiveStartDate,
           created_at: nowIso,
         };
 
         const starterAnchor: MotivationAnchor = {
-          id: `anc-${Date.now()}`,
+          id: ensureUuid(),
           tracker_id: newTrackerId,
           user_id: user.id,
           title: 'Recuperar mi claridad mental y control',
@@ -770,6 +899,16 @@ export const useTrackerStore = create<TrackerStoreState>()(
           isAuthModalOpen: false,
           isProfileModalOpen: false,
         });
+
+        // Subir inmediatamente la nueva configuración del usuario a Supabase
+        syncService.uploadLocalDataToCloud(user.id, {
+          trackers: [newTracker],
+          streaks: [newStreak],
+          pledges: [],
+          reviews: initialReviews,
+          anchors: [starterAnchor],
+          urgeLogs: [],
+        });
       },
 
       resetAllData: (mode) => {
@@ -792,12 +931,13 @@ export const useTrackerStore = create<TrackerStoreState>()(
         const resetTrackers: Tracker[] = currentTrackers.length > 0
           ? currentTrackers.map((t) => ({
               ...t,
+              id: ensureUuid(t.id),
               start_date: nowIso,
             }))
           : [
               {
                 ...INITIAL_TRACKER,
-                id: `trk-${Date.now()}`,
+                id: ensureUuid(),
                 user_id: currentUserId,
                 start_date: nowIso,
               },
@@ -806,14 +946,14 @@ export const useTrackerStore = create<TrackerStoreState>()(
         const activeId = resetTrackers[0].id;
 
         const newStreaks: TrackerStreak[] = resetTrackers.map((t) => ({
-          id: `strk-${Date.now()}-${t.id}`,
+          id: ensureUuid(),
           tracker_id: t.id,
           started_at: nowIso,
           created_at: nowIso,
         }));
 
         const cleanStarterAnchor: MotivationAnchor = {
-          id: `anc-${Date.now()}`,
+          id: ensureUuid(),
           tracker_id: activeId,
           user_id: currentUserId,
           title: 'Recuperar mi claridad mental y control',
@@ -847,6 +987,17 @@ export const useTrackerStore = create<TrackerStoreState>()(
           isProfileModalOpen: false,
           isOnboardingCompleted: mode === 'clean_zero',
         });
+
+        if (get().authUser) {
+          syncService.uploadLocalDataToCloud(get().authUser!.id, {
+            trackers: resetTrackers,
+            streaks: newStreaks,
+            pledges: [],
+            reviews: [],
+            anchors: [cleanStarterAnchor],
+            urgeLogs: [],
+          });
+        }
       },
     }),
     {

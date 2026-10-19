@@ -18,6 +18,7 @@ export const AuthModal: React.FC = () => {
   const setProfile = useTrackerStore((state) => state.setProfile);
   const setAuthUser = useTrackerStore((state) => state.setAuthUser);
   const resetAppDataForNewUser = useTrackerStore((state) => state.resetAppDataForNewUser);
+  const syncWithCloud = useTrackerStore((state) => state.syncWithCloud);
 
   const [mode, setMode] = useState<'register' | 'login' | 'anonymous'>('register');
   const [email, setEmail] = useState('');
@@ -86,9 +87,11 @@ export const AuthModal: React.FC = () => {
               created_at: new Date().toISOString(),
             });
           }
+          // Sincronizar inmediatamente todos los datos del usuario desde la nube
+          await syncWithCloud(data.user.id);
         }
 
-        setSuccessMessage('¡Bienvenido de nuevo! Sesión iniciada.');
+        setSuccessMessage('¡Bienvenido de nuevo! Sesión sincronizada.');
         setTimeout(() => {
           handleClose();
         }, 1000);

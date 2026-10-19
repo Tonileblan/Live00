@@ -135,27 +135,31 @@ const INITIAL_COMMUNITY_POSTS: CommunityPost[] = [
 ];
 
 // Helper to generate realistic daily history for heatmap
-function generateInitialReviews(startDateIso: string): DailyReview[] {
+function generateInitialReviews(
+  startDateIso: string,
+  trackerId: string = 'trk-alcohol-01',
+  userId: string = 'usr-default-01'
+): DailyReview[] {
   const reviews: DailyReview[] = [];
   const start = new Date(startDateIso);
   const now = new Date();
-  const diffDays = Math.floor((now.getTime() - start.getTime()) / 86400000);
+  const diffDays = Math.max(0, Math.floor((now.getTime() - start.getTime()) / 86400000));
 
   for (let i = 0; i < diffDays; i++) {
     const d = new Date(start.getTime() + i * 86400000);
     const dateStr = d.toISOString().split('T')[0];
     
-    // Vary difficulty for demonstration
-    const isHardDay = i === 4 || i === 9 || i === 12;
+    // Vary difficulty for demonstration and realism
+    const isHardDay = i % 7 === 4;
     reviews.push({
-      id: `rev-${dateStr}`,
-      tracker_id: 'trk-alcohol-01',
-      user_id: 'usr-default-01',
+      id: `rev-${dateStr}-${trackerId}`,
+      tracker_id: trackerId,
+      user_id: userId,
       review_date: dateStr,
       stayed_sober: true,
       difficulty_rating: isHardDay ? 4 : (i % 2 === 0 ? 1 : 2),
       triggers: isHardDay ? ['Evento social', 'Estrés laboral'] : ['Aburrimiento nocturno'],
-      notes: isHardDay ? 'Cena con compañeros de trabajo, momentos difíciles pero superados.' : 'Día tranquilo y con energía.',
+      notes: isHardDay ? 'Cena social o momentos de tentación, superados con calma y firmeza.' : 'Día limpio, energía en aumento y lucidez.',
       created_at: new Date(d.getTime() + 20 * 3600000).toISOString(),
     });
   }
@@ -182,6 +186,7 @@ interface TrackerStoreState {
   isEveningReviewOpen: boolean;
   isResetModalOpen: boolean;
   isResetAllModalOpen: boolean;
+  isAdjustCleanTimeModalOpen: boolean;
   isOnboardingCompleted: boolean;
   isAuthModalOpen: boolean;
   isProfileModalOpen: boolean;
@@ -194,6 +199,7 @@ interface TrackerStoreState {
   openEveningReview: (open: boolean) => void;
   openResetModal: (open: boolean) => void;
   openResetAllModal: (open: boolean) => void;
+  openAdjustCleanTimeModal: (open: boolean) => void;
   setAuthModalOpen: (open: boolean) => void;
   setProfileModalOpen: (open: boolean) => void;
   setProfile: (profile: Profile) => void;
@@ -205,6 +211,7 @@ interface TrackerStoreState {
   // Business logic actions
   initNewTracker: (trackerData: Partial<Tracker>, firstAnchorTitle?: string) => void;
   switchTracker: (trackerId: string) => void;
+  adjustTrackerCleanTime: (trackerId: string, newStartDate: string) => void;
   signMorningPledge: () => void;
   submitEveningReview: (stayedSober: boolean, difficulty: number, triggers: string[], notes: string) => void;
   resetSobriety: (relapseTimestamp: string, reason: string, triggers: string[]) => void;
@@ -213,7 +220,7 @@ interface TrackerStoreState {
   deleteMotivationAnchor: (id: string) => void;
   addCommunityPost: (content: string, cohort: CommunityPost['cohort_bucket'], soberDays: number) => void;
   togglePostCheer: (postId: string) => void;
-  resetAppDataForNewUser: (user: User, alias: string, avatarColor: string) => void;
+  resetAppDataForNewUser: (user: User, alias: string, avatarColor: string, initialStartDate?: string) => void;
   resetToInitialDemo: () => void;
   resetAllData: (mode: 'clean_zero' | 'reconfigure' | 'demo') => void;
 }
@@ -276,6 +283,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
       isEveningReviewOpen: false,
       isResetModalOpen: false,
       isResetAllModalOpen: false,
+      isAdjustCleanTimeModalOpen: false,
       isOnboardingCompleted: true,
       authUser: null,
       isAuthModalOpen: false,
@@ -288,6 +296,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
       openEveningReview: (open) => set({ isEveningReviewOpen: open }),
       openResetModal: (open) => set({ isResetModalOpen: open }),
       openResetAllModal: (open) => set({ isResetAllModalOpen: open }),
+      openAdjustCleanTimeModal: (open) => set({ isAdjustCleanTimeModalOpen: open }),
       setAuthModalOpen: (open) => set({ isAuthModalOpen: open }),
       setProfileModalOpen: (open) => set({ isProfileModalOpen: open }),
       setProfile: (profile) =>
@@ -406,14 +415,17 @@ export const useTrackerStore = create<TrackerStoreState>()(
           });
         }
 
+        const generatedReviews = generateInitialReviews(newStartDate, newId, get().profile.id);
         const isFreshUser = !get().isOnboardingCompleted || get().trackers.some((t) => t.user_id === 'usr-default-01');
         const updatedTrackers = isFreshUser ? [newTracker] : [newTracker, ...get().trackers];
         const updatedStreaks = isFreshUser ? [newStreak] : [newStreak, ...get().streaks];
+        const updatedReviews = isFreshUser ? generatedReviews : [...generatedReviews, ...get().reviews];
 
         set({
           trackers: updatedTrackers,
           activeTrackerId: newId,
           streaks: updatedStreaks,
+          reviews: updatedReviews,
           anchors: newAnchors,
           isOnboardingCompleted: true,
           activeTab: 'dashboard',
@@ -422,6 +434,39 @@ export const useTrackerStore = create<TrackerStoreState>()(
 
       switchTracker: (trackerId) => {
         set({ activeTrackerId: trackerId });
+      },
+
+      adjustTrackerCleanTime: (trackerId, newStartDate) => {
+        const currentUserId = get().authUser?.id || get().profile.id || 'usr-default-01';
+        const trackers = get().trackers.map((t) =>
+          t.id === trackerId ? { ...t, start_date: newStartDate, updated_at: new Date().toISOString() } : t
+        );
+
+        let streaks = get().streaks.map((s) =>
+          s.tracker_id === trackerId ? { ...s, started_at: newStartDate } : s
+        );
+
+        if (!streaks.some((s) => s.tracker_id === trackerId)) {
+          streaks = [
+            {
+              id: `strk-${Date.now()}`,
+              tracker_id: trackerId,
+              started_at: newStartDate,
+              created_at: new Date().toISOString(),
+            },
+            ...streaks,
+          ];
+        }
+
+        const generatedReviews = generateInitialReviews(newStartDate, trackerId, currentUserId);
+        const otherReviews = get().reviews.filter((r) => r.tracker_id !== trackerId);
+
+        set({
+          trackers,
+          streaks,
+          reviews: [...generatedReviews, ...otherReviews],
+          isAdjustCleanTimeModalOpen: false,
+        });
       },
 
       signMorningPledge: () => {
@@ -654,15 +699,16 @@ export const useTrackerStore = create<TrackerStoreState>()(
         });
       },
 
-      resetAppDataForNewUser: (user: User, alias: string, avatarColor: string) => {
+      resetAppDataForNewUser: (user: User, alias: string, avatarColor: string, initialStartDate?: string) => {
         const nowIso = new Date().toISOString();
+        const effectiveStartDate = initialStartDate || nowIso;
         const newTrackerId = `trk-${Date.now()}`;
         const newTracker: Tracker = {
           id: newTrackerId,
           user_id: user.id,
           category: 'alcohol',
           habit_name: 'Alcohol',
-          start_date: nowIso,
+          start_date: effectiveStartDate,
           cost_per_day: 10,
           time_spent_minutes_per_day: 60,
           calories_per_day: 500,
@@ -674,7 +720,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
         const newStreak: TrackerStreak = {
           id: `strk-${Date.now()}`,
           tracker_id: newTrackerId,
-          started_at: nowIso,
+          started_at: effectiveStartDate,
           created_at: nowIso,
         };
 
@@ -694,6 +740,8 @@ export const useTrackerStore = create<TrackerStoreState>()(
           user_has_cheered: false,
         }));
 
+        const initialReviews = generateInitialReviews(effectiveStartDate, newTrackerId, user.id);
+
         set({
           authUser: user,
           profile: {
@@ -706,7 +754,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
           activeTrackerId: newTrackerId,
           streaks: [newStreak],
           pledges: [],
-          reviews: [],
+          reviews: initialReviews,
           urgeLogs: [],
           anchors: [starterAnchor],
           communityPosts: cleanCommunityPosts,
@@ -717,6 +765,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
           isEveningReviewOpen: false,
           isResetModalOpen: false,
           isResetAllModalOpen: false,
+          isAdjustCleanTimeModalOpen: false,
           isOnboardingCompleted: false,
           isAuthModalOpen: false,
           isProfileModalOpen: false,

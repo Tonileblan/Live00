@@ -1,6 +1,19 @@
 import React, { useState } from 'react';
 import { useTrackerStore } from '../../store/useTrackerStore';
-import { ShieldCheck, ArrowRight, ArrowLeft, Heart, Euro, Calendar, Sparkles } from 'lucide-react';
+import { ShieldCheck, ArrowRight, ArrowLeft, Heart, Euro, Calendar, Sparkles, Clock, Award } from 'lucide-react';
+
+const PRESET_CLEAN_TIMES = [
+  { label: 'Hoy (Día 0)', days: 0 },
+  { label: 'Ayer (1 día)', days: 1 },
+  { label: '3 días', days: 3 },
+  { label: '1 semana (7d)', days: 7 },
+  { label: '2 semanas (14d)', days: 14 },
+  { label: '1 mes (30d)', days: 30 },
+  { label: '2 meses (60d)', days: 60 },
+  { label: '3 meses (90d)', days: 90 },
+  { label: '6 meses (180d)', days: 180 },
+  { label: '1 año (365d)', days: 365 },
+];
 
 interface SetupTrackerWizardProps {
   onComplete: () => void;
@@ -18,11 +31,11 @@ export const SetupTrackerWizard: React.FC<SetupTrackerWizardProps> = ({ onComple
   const [habitName, setHabitName] = useState('Alcohol');
   const [alias, setAlias] = useState(profile.anonymous_alias || `Sobrio_${Math.floor(Math.random() * 900 + 100)}`);
   
-  // Date State
-  const [isPastDate, setIsPastDate] = useState(false);
-  const [customStartDate, setCustomStartDate] = useState(
-    new Date().toISOString().slice(0, 16)
-  );
+  // Date State: Presets or Custom
+  const [cleanDaysPreset, setCleanDaysPreset] = useState<number | 'custom'>(0);
+  const [customDaysInput, setCustomDaysInput] = useState<string>('0');
+  const [exactDateInput, setExactDateInput] = useState<string>(new Date().toISOString().slice(0, 16));
+  const [useExactDatePicker, setUseExactDatePicker] = useState<boolean>(false);
 
   // Financial & Habit Impact
   const [daysPerWeek, setDaysPerWeek] = useState(4);
@@ -31,10 +44,26 @@ export const SetupTrackerWizard: React.FC<SetupTrackerWizardProps> = ({ onComple
   // Anchor
   const [firstAnchor, setFirstAnchor] = useState('Recuperar mi claridad mental, salud y control');
 
+  const getFinalStartDate = (): string => {
+    if (useExactDatePicker) {
+      const parsed = new Date(exactDateInput);
+      return isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+    }
+    if (cleanDaysPreset === 'custom') {
+      const days = Math.max(0, parseInt(customDaysInput, 10) || 0);
+      return new Date(Date.now() - days * 86400000).toISOString();
+    }
+    return new Date(Date.now() - cleanDaysPreset * 86400000).toISOString();
+  };
+
+  const currentDiffDays = useExactDatePicker
+    ? Math.max(0, Math.floor((Date.now() - new Date(exactDateInput).getTime()) / 86400000))
+    : cleanDaysPreset === 'custom'
+    ? Math.max(0, parseInt(customDaysInput, 10) || 0)
+    : cleanDaysPreset;
+
   const handleFinish = () => {
-    const finalStartDate = isPastDate
-      ? new Date(customStartDate).toISOString()
-      : new Date().toISOString();
+    const finalStartDate = getFinalStartDate();
 
     const costPerDay = Number(((daysPerWeek * spendPerSession) / 7).toFixed(2));
     const timeSpentPerDay = Math.round((daysPerWeek * 120) / 7);
@@ -175,81 +204,237 @@ export const SetupTrackerWizard: React.FC<SetupTrackerWizardProps> = ({ onComple
           </div>
         )}
 
-        {/* STEP 2: Momento del último consumo */}
+        {/* STEP 2: Momento del último consumo / Tiempo Limpio */}
         {step === 2 && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1.2rem' }}>
-              <Calendar size={24} color="var(--emerald-400)" />
-              <h3 style={{ fontSize: '2rem', fontWeight: 800 }}>¿Cuándo fue tu último consumo?</h3>
+              <Clock size={24} color="var(--emerald-400)" />
+              <h3 style={{ fontSize: '2rem', fontWeight: 800 }}>¿Cuánto tiempo llevas limpio?</h3>
             </div>
-            <p style={{ fontSize: '1.4rem', color: 'var(--text-secondary)', marginBottom: '2.4rem' }}>
-              Si estás empezando ahora mismo o si ya llevas días sin consumir, tu contador reflejará el tiempo exacto.
+            <p style={{ fontSize: '1.4rem', color: 'var(--text-secondary)', marginBottom: '1.8rem' }}>
+              Casi nadie empieza en el segundo exacto. Si ya llevas horas, días o semanas sin consumir, tu
+              contador reflejará todo tu esfuerzo acumulado.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', marginBottom: '2.4rem' }}>
-              <button
-                onClick={() => setIsPastDate(false)}
-                style={{
-                  padding: '1.4rem',
-                  borderRadius: 'var(--radius-md)',
-                  background: !isPastDate ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                  border: `0.15rem solid ${!isPastDate ? 'var(--emerald-400)' : 'var(--border-subtle)'}`,
-                  color: !isPastDate ? '#FFF' : 'var(--text-secondary)',
-                  fontSize: '1.5rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-              >
-                <div>Empezar ahora mismo (Día 0)</div>
-                <div style={{ fontSize: '1.2rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                  El reloj empezará a contar desde este instante.
-                </div>
-              </button>
+            {/* Presets Chips */}
+            <div style={{ marginBottom: '1.6rem' }}>
+              <label style={{ display: 'block', fontSize: '1.2rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.8rem' }}>
+                ELIGE TU TIEMPO LIMPIO ACTUAL
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.8rem' }}>
+                {PRESET_CLEAN_TIMES.map((opt) => {
+                  const isSelected = !useExactDatePicker && cleanDaysPreset === opt.days;
+                  return (
+                    <button
+                      key={opt.days}
+                      type="button"
+                      onClick={() => {
+                        setUseExactDatePicker(false);
+                        setCleanDaysPreset(opt.days);
+                        setCustomDaysInput(opt.days.toString());
+                        const d = new Date(Date.now() - opt.days * 86400000);
+                        setExactDateInput(d.toISOString().slice(0, 16));
+                      }}
+                      className="touch-target"
+                      style={{
+                        padding: '0.7rem 1.2rem',
+                        borderRadius: 'var(--radius-full)',
+                        background: isSelected ? 'var(--emerald-400)' : 'rgba(255, 255, 255, 0.05)',
+                        border: `0.1rem solid ${isSelected ? 'var(--emerald-400)' : 'var(--border-subtle)'}`,
+                        color: isSelected ? '#000' : 'var(--text-primary)',
+                        fontWeight: isSelected ? 800 : 500,
+                        fontSize: '1.3rem',
+                        cursor: 'pointer',
+                        transition: 'all var(--transition-fast)',
+                      }}
+                      aria-label={`Seleccionar ${opt.label} de tiempo limpio`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
 
-              <button
-                onClick={() => setIsPastDate(true)}
-                style={{
-                  padding: '1.4rem',
-                  borderRadius: 'var(--radius-md)',
-                  background: isPastDate ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                  border: `0.15rem solid ${isPastDate ? 'var(--emerald-400)' : 'var(--border-subtle)'}`,
-                  color: isPastDate ? '#FFF' : 'var(--text-secondary)',
-                  fontSize: '1.5rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-              >
-                <div>Ya llevo días limpio (Fecha anterior)</div>
-                <div style={{ fontSize: '1.2rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                  Indica la fecha y hora exacta en que decidiste parar.
-                </div>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setCleanDaysPreset('custom')}
+                  className="touch-target"
+                  style={{
+                    padding: '0.7rem 1.2rem',
+                    borderRadius: 'var(--radius-full)',
+                    background: cleanDaysPreset === 'custom' || useExactDatePicker ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                    border: `0.1rem solid ${cleanDaysPreset === 'custom' || useExactDatePicker ? '#3B82F6' : 'var(--border-subtle)'}`,
+                    color: cleanDaysPreset === 'custom' || useExactDatePicker ? '#60A5FA' : 'var(--text-primary)',
+                    fontWeight: 700,
+                    fontSize: '1.3rem',
+                    cursor: 'pointer',
+                  }}
+                  aria-label="Introducir días o fecha exacta"
+                >
+                  Otro / Personalizado
+                </button>
+              </div>
             </div>
 
-            {isPastDate && (
-              <div style={{ marginBottom: '2.4rem' }}>
-                <label style={{ display: 'block', fontSize: '1.2rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.8rem' }}>
-                  FECHA Y HORA DEL ÚLTIMO CONSUMO
-                </label>
-                <input
-                  type="datetime-local"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '0.1rem solid var(--border-card)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '1.2rem',
-                    color: 'var(--text-primary)',
-                    fontSize: '1.4rem',
-                    outline: 'none',
-                  }}
-                />
+            {/* Custom Days or Calendar Picker */}
+            {(cleanDaysPreset === 'custom' || useExactDatePicker) && (
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '0.1rem solid var(--border-card)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '1.4rem',
+                  marginBottom: '1.6rem',
+                  animation: 'fadeIn 150ms ease',
+                }}
+              >
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.2rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setUseExactDatePicker(false)}
+                    style={{
+                      flex: 1,
+                      padding: '0.7rem',
+                      borderRadius: 'var(--radius-sm)',
+                      background: !useExactDatePicker ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                      border: `0.1rem solid ${!useExactDatePicker ? '#3B82F6' : 'transparent'}`,
+                      color: !useExactDatePicker ? '#FFF' : 'var(--text-secondary)',
+                      fontWeight: 600,
+                      fontSize: '1.25rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Indicar Días
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseExactDatePicker(true)}
+                    style={{
+                      flex: 1,
+                      padding: '0.7rem',
+                      borderRadius: 'var(--radius-sm)',
+                      background: useExactDatePicker ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                      border: `0.1rem solid ${useExactDatePicker ? '#3B82F6' : 'transparent'}`,
+                      color: useExactDatePicker ? '#FFF' : 'var(--text-secondary)',
+                      fontWeight: 600,
+                      fontSize: '1.25rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Fecha y Hora Exacta
+                  </button>
+                </div>
+
+                {!useExactDatePicker ? (
+                  <div>
+                    <label
+                      htmlFor="wizard-custom-days"
+                      style={{ display: 'block', fontSize: '1.2rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.6rem' }}
+                    >
+                      ¿CUÁNTOS DÍAS LLEVAS SIN CONSUMIR?
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <input
+                        id="wizard-custom-days"
+                        type="number"
+                        min="0"
+                        max="10000"
+                        value={customDaysInput}
+                        onChange={(e) => {
+                          setCustomDaysInput(e.target.value);
+                          const days = Math.max(0, parseInt(e.target.value, 10) || 0);
+                          const d = new Date(Date.now() - days * 86400000);
+                          setExactDateInput(d.toISOString().slice(0, 16));
+                        }}
+                        style={{
+                          width: '12rem',
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          border: '0.1rem solid var(--border-card)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: '1rem 1.2rem',
+                          color: 'var(--text-primary)',
+                          fontSize: '1.6rem',
+                          fontWeight: 800,
+                          outline: 'none',
+                        }}
+                      />
+                      <span style={{ fontSize: '1.4rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                        días continuos
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label
+                      htmlFor="wizard-exact-date"
+                      style={{ display: 'block', fontSize: '1.2rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.6rem' }}
+                    >
+                      FECHA Y HORA DE TU ÚLTIMO CONSUMO
+                    </label>
+                    <input
+                      id="wizard-exact-date"
+                      type="datetime-local"
+                      value={exactDateInput}
+                      onChange={(e) => {
+                        setExactDateInput(e.target.value);
+                        const parsed = new Date(e.target.value);
+                        if (!isNaN(parsed.getTime())) {
+                          const diff = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 86400000));
+                          setCustomDaysInput(diff.toString());
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '0.1rem solid var(--border-card)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '1.2rem',
+                        color: 'var(--text-primary)',
+                        fontSize: '1.4rem',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Live Preview Card */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(18, 24, 36, 0.9) 100%)',
+                border: '0.1rem solid rgba(16, 185, 129, 0.3)',
+                borderRadius: 'var(--radius-md)',
+                padding: '1.6rem',
+                marginBottom: '2rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '0.6rem' }}>
+                <Sparkles size={18} color="var(--emerald-400)" />
+                <span style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--emerald-400)' }}>
+                  ESTADO INICIAL DEL CONTADOR
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem' }}>
+                <span style={{ fontSize: '1.35rem', color: 'var(--text-secondary)' }}>Tu racha arrancará con:</span>
+                <span style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FFF' }}>
+                  {currentDiffDays} {currentDiffDays === 1 ? 'Día' : 'Días'} limpios
+                </span>
+              </div>
+
+              <div style={{ fontSize: '1.2rem', color: 'var(--text-muted)' }}>
+                {currentDiffDays > 0 ? (
+                  <span>
+                    ¡Excelente decisión! Se generará tu historial retrospectivo para que tu calendario de sobriedad y tus
+                    estadísticas comiencen reflejando tu esfuerzo real.
+                  </span>
+                ) : (
+                  <span>
+                    El reloj empezará a contar desde este momento. ¡El mejor momento para empezar es hoy!
+                  </span>
+                )}
+              </div>
+            </div>
 
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button onClick={() => setStep(1)} className="btn-secondary" style={{ flex: 1 }}>

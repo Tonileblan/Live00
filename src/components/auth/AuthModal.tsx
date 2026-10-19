@@ -24,6 +24,7 @@ export const AuthModal: React.FC = () => {
   const [password, setPassword] = useState('');
   const [alias, setAlias] = useState('');
   const [avatarColor, setAvatarColor] = useState('#10B981');
+  const [initialCleanDays, setInitialCleanDays] = useState<number>(0);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -56,7 +57,8 @@ export const AuthModal: React.FC = () => {
         const data = await authService.signUp(email.trim(), password, effectiveAlias, avatarColor);
 
         if (data.user) {
-          resetAppDataForNewUser(data.user, effectiveAlias, avatarColor);
+          const initialStartDate = new Date(Date.now() - initialCleanDays * 86400000).toISOString();
+          resetAppDataForNewUser(data.user, effectiveAlias, avatarColor, initialStartDate);
         }
 
         setSuccessMessage('¡Cuenta creada con éxito! Todo listo para empezar tu camino.');
@@ -96,7 +98,8 @@ export const AuthModal: React.FC = () => {
         const data = await authService.signInAnonymously(effectiveAlias, avatarColor);
 
         if (data.user) {
-          resetAppDataForNewUser(data.user, effectiveAlias, avatarColor);
+          const initialStartDate = new Date(Date.now() - initialCleanDays * 86400000).toISOString();
+          resetAppDataForNewUser(data.user, effectiveAlias, avatarColor, initialStartDate);
         }
 
         setSuccessMessage('Sesión anónima iniciada. ¡Bienvenido!');
@@ -369,6 +372,44 @@ export const AuthModal: React.FC = () => {
                         }}
                       >
                         {isSelected && <Check size={16} color="#FFF" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Optional current clean time presets */}
+              <div>
+                <span style={{ display: 'block', fontSize: '1.2rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.6rem' }}>
+                  ¿CUÁNTO TIEMPO LLEVAS LIMPIO? (OPCIONAL)
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+                  {[
+                    { label: 'Hoy (Día 0)', days: 0 },
+                    { label: '3 días', days: 3 },
+                    { label: '1 semana (7d)', days: 7 },
+                    { label: '2 semanas (14d)', days: 14 },
+                    { label: '1 mes (30d)', days: 30 },
+                    { label: '3+ meses', days: 90 },
+                  ].map((preset) => {
+                    const isSelected = initialCleanDays === preset.days;
+                    return (
+                      <button
+                        key={preset.days}
+                        type="button"
+                        onClick={() => setInitialCleanDays(preset.days)}
+                        style={{
+                          padding: '0.6rem 1rem',
+                          borderRadius: 'var(--radius-full)',
+                          background: isSelected ? 'var(--emerald-400)' : 'rgba(255, 255, 255, 0.05)',
+                          border: `0.1rem solid ${isSelected ? 'var(--emerald-400)' : 'var(--border-subtle)'}`,
+                          color: isSelected ? '#000' : 'var(--text-secondary)',
+                          fontSize: '1.2rem',
+                          fontWeight: isSelected ? 800 : 500,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {preset.label}
                       </button>
                     );
                   })}

@@ -10,6 +10,7 @@ import { MorningPledgeSheet } from './components/routines/MorningPledgeSheet';
 import { EveningReviewWizard } from './components/routines/EveningReviewWizard';
 import { RelapseResetModal } from './components/routines/RelapseResetModal';
 import { ResetAllModal } from './components/routines/ResetAllModal';
+import { AdjustCleanTimeModal } from './components/counter/AdjustCleanTimeModal';
 import { SetupTrackerWizard } from './components/onboarding/SetupTrackerWizard';
 import { AuthModal } from './components/auth/AuthModal';
 import { ProfileModal } from './components/auth/ProfileModal';
@@ -50,6 +51,7 @@ export function App() {
       <EveningReviewWizard />
       <RelapseResetModal />
       <ResetAllModal />
+      <AdjustCleanTimeModal />
       <AuthModal />
       <ProfileModal />
 

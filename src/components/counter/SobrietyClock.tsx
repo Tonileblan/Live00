@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTrackerStore } from '../../store/useTrackerStore';
 import { FormattedTime } from '../../hooks/useSobrietyTicker';
-import { RefreshCw, Calendar } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 interface SobrietyClockProps {
   time: FormattedTime;
@@ -11,7 +11,6 @@ interface SobrietyClockProps {
 export const SobrietyClock: React.FC<SobrietyClockProps> = ({ time, habitName = 'Alcohol' }) => {
   const clockMode = useTrackerStore((state) => state.clockMode);
   const setClockMode = useTrackerStore((state) => state.setClockMode);
-  const openAdjustCleanTimeModal = useTrackerStore((state) => state.openAdjustCleanTimeModal);
 
   const toggleMode = () => {
     if (clockMode === 'detailed') setClockMode('hours');
@@ -165,57 +164,20 @@ export const SobrietyClock: React.FC<SobrietyClockProps> = ({ time, habitName = 
           </div>
         )}
 
-        {/* Mode switcher hint & Adjust clean time button */}
+        {/* Mode switcher hint */}
         <div
           style={{
             marginTop: '1.8rem',
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: '1rem',
-            flexWrap: 'wrap',
+            gap: '0.6rem',
+            fontSize: '1.2rem',
+            color: 'var(--text-muted)',
+            fontWeight: 500,
           }}
         >
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.6rem',
-              fontSize: '1.2rem',
-              color: 'var(--text-muted)',
-              fontWeight: 500,
-            }}
-          >
-            <RefreshCw size={12} />
-            <span>Toca para alternar vista</span>
-          </div>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              openAdjustCleanTimeModal(true);
-            }}
-            className="touch-target"
-            style={{
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '0.1rem solid var(--border-card)',
-              borderRadius: 'var(--radius-full)',
-              padding: '0.5rem 1.1rem',
-              color: 'var(--emerald-400)',
-              fontSize: '1.2rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.6rem',
-              transition: 'all var(--transition-fast)',
-            }}
-            aria-label="Ajustar fecha de inicio o tiempo limpio"
-          >
-            <Calendar size={13} color="var(--emerald-400)" />
-            <span>Ajustar tiempo limpio</span>
-          </button>
+          <RefreshCw size={12} />
+          <span>Toca para alternar vista (Detalle / Horas / Segundos)</span>
         </div>
       </div>
     </div>

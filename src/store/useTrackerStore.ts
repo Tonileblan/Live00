@@ -211,6 +211,7 @@ interface TrackerStoreState {
   deleteMotivationAnchor: (id: string) => void;
   addCommunityPost: (content: string, cohort: CommunityPost['cohort_bucket'], soberDays: number) => void;
   togglePostCheer: (postId: string) => void;
+  resetAppDataForNewUser: (user: User, alias: string, avatarColor: string) => void;
   resetToInitialDemo: () => void;
 }
 
@@ -400,14 +401,18 @@ export const useTrackerStore = create<TrackerStoreState>()(
           });
         }
 
-        set((state) => ({
-          trackers: [newTracker, ...state.trackers],
+        const isFreshUser = !get().isOnboardingCompleted || get().trackers.some((t) => t.user_id === 'usr-default-01');
+        const updatedTrackers = isFreshUser ? [newTracker] : [newTracker, ...get().trackers];
+        const updatedStreaks = isFreshUser ? [newStreak] : [newStreak, ...get().streaks];
+
+        set({
+          trackers: updatedTrackers,
           activeTrackerId: newId,
-          streaks: [newStreak, ...state.streaks],
+          streaks: updatedStreaks,
           anchors: newAnchors,
           isOnboardingCompleted: true,
           activeTab: 'dashboard',
-        }));
+        });
       },
 
       switchTracker: (trackerId) => {
@@ -641,6 +646,74 @@ export const useTrackerStore = create<TrackerStoreState>()(
           isEveningReviewOpen: false,
           isResetModalOpen: false,
           isOnboardingCompleted: true,
+        });
+      },
+
+      resetAppDataForNewUser: (user: User, alias: string, avatarColor: string) => {
+        const nowIso = new Date().toISOString();
+        const newTrackerId = `trk-${Date.now()}`;
+        const newTracker: Tracker = {
+          id: newTrackerId,
+          user_id: user.id,
+          category: 'alcohol',
+          habit_name: 'Alcohol',
+          start_date: nowIso,
+          cost_per_day: 10,
+          time_spent_minutes_per_day: 60,
+          calories_per_day: 500,
+          is_active: true,
+          created_at: nowIso,
+          updated_at: nowIso,
+        };
+
+        const newStreak: TrackerStreak = {
+          id: `strk-${Date.now()}`,
+          tracker_id: newTrackerId,
+          started_at: nowIso,
+          created_at: nowIso,
+        };
+
+        const starterAnchor: MotivationAnchor = {
+          id: `anc-${Date.now()}`,
+          tracker_id: newTrackerId,
+          user_id: user.id,
+          title: 'Recuperar mi claridad mental y control',
+          description: 'Vivir cada día con total lucidez, salud y libertad.',
+          image_url: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=600&q=80',
+          display_order: 1,
+          created_at: nowIso,
+        };
+
+        const cleanCommunityPosts = get().communityPosts.map((p) => ({
+          ...p,
+          user_has_cheered: false,
+        }));
+
+        set({
+          authUser: user,
+          profile: {
+            id: user.id,
+            anonymous_alias: alias,
+            avatar_color: avatarColor,
+            created_at: nowIso,
+          },
+          trackers: [newTracker],
+          activeTrackerId: newTrackerId,
+          streaks: [newStreak],
+          pledges: [],
+          reviews: [],
+          urgeLogs: [],
+          anchors: [starterAnchor],
+          communityPosts: cleanCommunityPosts,
+          clockMode: 'detailed',
+          activeTab: 'dashboard',
+          isSOSOpen: false,
+          isMorningPledgeOpen: false,
+          isEveningReviewOpen: false,
+          isResetModalOpen: false,
+          isOnboardingCompleted: false,
+          isAuthModalOpen: false,
+          isProfileModalOpen: false,
         });
       },
     }),

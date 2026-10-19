@@ -17,6 +17,7 @@ export const AuthModal: React.FC = () => {
   const setAuthModalOpen = useTrackerStore((state) => state.setAuthModalOpen);
   const setProfile = useTrackerStore((state) => state.setProfile);
   const setAuthUser = useTrackerStore((state) => state.setAuthUser);
+  const resetAppDataForNewUser = useTrackerStore((state) => state.resetAppDataForNewUser);
 
   const [mode, setMode] = useState<'register' | 'login' | 'anonymous'>('register');
   const [email, setEmail] = useState('');
@@ -55,19 +56,13 @@ export const AuthModal: React.FC = () => {
         const data = await authService.signUp(email.trim(), password, effectiveAlias, avatarColor);
 
         if (data.user) {
-          setAuthUser(data.user);
-          setProfile({
-            id: data.user.id,
-            anonymous_alias: effectiveAlias,
-            avatar_color: avatarColor,
-            created_at: new Date().toISOString(),
-          });
+          resetAppDataForNewUser(data.user, effectiveAlias, avatarColor);
         }
 
-        setSuccessMessage('¡Cuenta creada con éxito! Confirmación y bienvenida enviadas vía Acumbamail.');
+        setSuccessMessage('¡Cuenta creada con éxito! Todo listo para empezar tu camino.');
         setTimeout(() => {
           handleClose();
-        }, 1500);
+        }, 1200);
 
       } else if (mode === 'login') {
         if (!email.trim() || !password.trim()) {
@@ -101,16 +96,10 @@ export const AuthModal: React.FC = () => {
         const data = await authService.signInAnonymously(effectiveAlias, avatarColor);
 
         if (data.user) {
-          setAuthUser(data.user);
-          setProfile({
-            id: data.user.id,
-            anonymous_alias: effectiveAlias,
-            avatar_color: avatarColor,
-            created_at: new Date().toISOString(),
-          });
+          resetAppDataForNewUser(data.user, effectiveAlias, avatarColor);
         }
 
-        setSuccessMessage('Sesión anónima creada en la nube.');
+        setSuccessMessage('Sesión anónima iniciada. ¡Bienvenido!');
         setTimeout(() => {
           handleClose();
         }, 1000);

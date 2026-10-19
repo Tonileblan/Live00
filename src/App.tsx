@@ -28,6 +28,12 @@ export function App() {
     };
   }, [initAuthListener]);
 
+  useEffect(() => {
+    if (!isOnboardingCompleted) {
+      setIsOnboardingModalOpen(true);
+    }
+  }, [isOnboardingCompleted]);
+
   return (
     <>
       <AppShell onOpenOnboarding={() => setIsOnboardingModalOpen(true)}>

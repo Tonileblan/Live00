@@ -284,7 +284,22 @@ export const useTrackerStore = create<TrackerStoreState>()(
       openResetModal: (open) => set({ isResetModalOpen: open }),
       setAuthModalOpen: (open) => set({ isAuthModalOpen: open }),
       setProfileModalOpen: (open) => set({ isProfileModalOpen: open }),
-      setProfile: (profile) => set({ profile }),
+      setProfile: (profile) =>
+        set((state) => ({
+          profile,
+          trackers: state.trackers.map((t) =>
+            t.user_id === 'usr-default-01' ? { ...t, user_id: profile.id } : t
+          ),
+          anchors: state.anchors.map((a) =>
+            a.user_id === 'usr-default-01' ? { ...a, user_id: profile.id } : a
+          ),
+          pledges: state.pledges.map((p) =>
+            p.user_id === 'usr-default-01' ? { ...p, user_id: profile.id } : p
+          ),
+          reviews: state.reviews.map((r) =>
+            r.user_id === 'usr-default-01' ? { ...r, user_id: profile.id } : r
+          ),
+        })),
       setAuthUser: (user) => set({ authUser: user }),
 
       logoutUser: async () => {
@@ -327,7 +342,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
             set({ authUser: session.user });
             authService.getProfile(session.user.id).then((profile) => {
               if (profile) {
-                set({ profile });
+                get().setProfile(profile);
               }
             });
           }
@@ -338,7 +353,7 @@ export const useTrackerStore = create<TrackerStoreState>()(
           if (user) {
             authService.getProfile(user.id).then((profile) => {
               if (profile) {
-                set({ profile });
+                get().setProfile(profile);
               }
             });
           }

@@ -93,6 +93,11 @@ export const authService = {
 
     if (error) throw error;
 
+    // Si el usuario ya existe, Supabase devuelve un array de identidades vacío
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      throw new Error('Este correo electrónico ya está registrado. Por favor, ve a la pestaña "Iniciar Sesión" para acceder.');
+    }
+
     // Si el trigger de Postgres creó el perfil, lo recuperamos; de lo contrario aseguramos su inserción
     if (data.user) {
       const profile = await this.getProfile(data.user.id);
